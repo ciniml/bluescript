@@ -10,6 +10,9 @@ import { execShell } from '../../core/command-exec';
 import chalk from "chalk";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { DEFAULT_DEVICE_NAME } from "../../config/project-config";
+import { isEsp32ClangBoardConfig, isEsp32IdfBoardConfig } from "../../config/global-config";
+import { createRuntimeBundle } from "../../platforms/runtime-bundle";
+import { simpleExec } from '../../core/command-exec';
 
 
 const RUNTIME_ESP_PORT_DIR = (runtimeDir: string) => path.join(runtimeDir, 'ports/esp32');
@@ -60,11 +63,36 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
         return this.globalConfigHandler.isBoardSetup(this.boardName);
     }
 
+    // True when the board was set up with `setup-lite` (clang + runtime bundle, no ESP-IDF).
+    private get usesBundle(): boolean {
+        const config = this.globalConfigHandler.getBoardConfig(this.boardName);
+        return config !== undefined && isEsp32ClangBoardConfig(config);
+    }
+
+    private get bundleFlashDir(): string {
+        const config = this.globalConfigHandler.getBoardConfig(this.boardName);
+        if (!config || !isEsp32ClangBoardConfig(config)) {
+            throw new Error('An unexpected error occurred: cannot find the runtime bundle.');
+        }
+        return path.join(config.bundleDir, 'flash');
+    }
+
     async eraseFlash(port: string) {
+        if (this.usesBundle) {
+            await this.runEsptool(['erase_flash'], port);
+            return;
+        }
         await this.runIdfPy([...this.targetArgs, 'erase-flash', '-p', port]);
     }
     
     async flashRuntime(port: string, deviceName?: string) {
+        if (this.usesBundle) {
+            if (deviceName !== undefined && deviceName !== DEFAULT_DEVICE_NAME) {
+                throw new Error('The device name is fixed in a prebuilt runtime bundle; --device-name is not supported with setup-lite.');
+            }
+            await this.runEsptool(['-b', '460800', 'write_flash', '@flash_args'], port);
+            return;
+        }
         deviceName = deviceName ?? DEFAULT_DEVICE_NAME;
         await this.runIdfPy(
             [...this.targetArgs, '-D', `DEVICE_NAME=${deviceName}`, 'build', 'flash', '-p', port],
@@ -72,11 +100,40 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     }
 
     async buildRuntime(deviceName?: string): Promise<string> {
+        if (this.usesBundle) {
+            throw new Error(`The runtime cannot be built without ESP-IDF. Run 'bscript board setup ${this.boardName}' for the full environment.`);
+        }
         deviceName = deviceName ?? DEFAULT_DEVICE_NAME;
         await this.runIdfPy(
             [...this.targetArgs, '-D', `DEVICE_NAME=${deviceName}`, 'build'],
         );
         return path.join(this.getEspPortDir(), ESP32_TARGET_BUILD_DIRS[this.boardName]);
+    }
+
+    // Collect the build artifacts into a runtime bundle for `setup-lite`.
+    createBundle(): string {
+        return createRuntimeBundle(this.getRuntimeDir(), this.boardName);
+    }
+
+    // esptool is used when flashing a prebuilt bundle (no ESP-IDF available).
+    private async runEsptool(args: string[], port: string) {
+        const python = await this.findPythonWithEsptool();
+        await execShell(
+            `${python} -m esptool --chip ${this.boardName} -p ${port} ${args.join(' ')}`,
+            { cwd: this.bundleFlashDir },
+        );
+    }
+
+    private async findPythonWithEsptool(): Promise<string> {
+        for (const python of ['python3', 'python']) {
+            try {
+                await simpleExec(python, ['-m', 'esptool', 'version']);
+                return python;
+            } catch {
+                // try the next candidate
+            }
+        }
+        throw new Error("Cannot find esptool. Install it with 'pip install esptool' and try again.");
     }
 
     private async runIdfPy(args: string[]) {
@@ -87,17 +144,21 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
         await execShell(`${preCommand} && idf.py ${args.join(' ')}`, { cwd });
     }
 
-    private getEspPortDir() {
+    private getRuntimeDir() {
         const runtimeDir = this.globalConfigHandler.getConfig().runtimeDir;
         if (!runtimeDir) {
             throw new Error('An unexpected error occurred: cannot find runtime directory path.');
         }
-        return RUNTIME_ESP_PORT_DIR(runtimeDir);
+        return runtimeDir;
+    }
+
+    private getEspPortDir() {
+        return RUNTIME_ESP_PORT_DIR(this.getRuntimeDir());
     }
 
     private getExportFile() {
         const boardConfig = this.globalConfigHandler.getBoardConfig(this.boardName);
-        if (!boardConfig) {
+        if (!boardConfig || !isEsp32IdfBoardConfig(boardConfig)) {
             throw new Error('An unexpected error occurred: cannot find board config.');
         }
         return boardConfig.exportFile;

@@ -4,7 +4,9 @@ import { BoardName } from './board-utils';
 import { GLOBAL_SETTINGS } from './constants';
 
 
-const esp32BoardSchema = z.object({
+// Full environment: ESP-IDF + GCC toolchain (bscript board setup).
+const esp32IdfBoardSchema = z.object({
+    toolchainType: z.literal('esp-idf').default('esp-idf'),
     idfVersion: z.string(),
     rootDir: z.string(),
     exportFile: z.string(),
@@ -16,6 +18,22 @@ const esp32BoardSchema = z.object({
         python: z.string(),
     }),
 });
+
+// Lite environment: Espressif clang + a prebuilt runtime bundle (bscript board setup-lite).
+const esp32ClangBoardSchema = z.object({
+    toolchainType: z.literal('clang'),
+    clangVersion: z.string(),
+    rootDir: z.string(),      // clang installation directory
+    bundleDir: z.string(),    // runtime bundle directory
+    toolchain: z.object({
+        clang: z.string(),
+        ar: z.string(),
+        ld: z.string(),
+    }),
+});
+
+// The clang schema is tried first because the esp-idf schema defaults toolchainType.
+const esp32BoardSchema = z.union([esp32ClangBoardSchema, esp32IdfBoardSchema]);
 
 const hostBoardSchema = z.object({
     rootDir: z.string(),
@@ -39,7 +57,11 @@ const globalConfigSchema = z.object({
     boards: boardConfigSchema.default({}),
 });
 
-export type Esp32BoardConfig = z.infer<typeof esp32BoardSchema>;
+export type Esp32BoardConfig = z.infer<typeof esp32IdfBoardSchema>;
+export type Esp32ClangBoardConfig = z.infer<typeof esp32ClangBoardSchema>;
+export type Esp32AnyBoardConfig = z.infer<typeof esp32BoardSchema>;
+export const isEsp32IdfBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32BoardConfig => c.toolchainType === 'esp-idf';
+export const isEsp32ClangBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32ClangBoardConfig => c.toolchainType === 'clang';
 export type HostBoardConfig = z.infer<typeof hostBoardSchema>;
 export type BoardConfig = z.infer<typeof boardConfigSchema>;
 export type GlobalConfig = z.infer<typeof globalConfigSchema>;

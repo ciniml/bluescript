@@ -28,6 +28,9 @@ import { GLOBAL_SETTINGS } from '../../../src/config/constants';
 import { Esp32UnixEnv } from '../../../src/platforms/board-env/esp32-env';
 
 jest.mock('serialport', () => ({ SerialPort: { list: jest.fn(async () => []) } }));
+jest.mock('../../../src/platforms/runtime-bundle', () => ({
+    createRuntimeBundle: jest.fn(() => '/mock/bundle-esp32s3'),
+}));
 jest.mock('os', () => ({
     ...jest.requireActual('os'),
     platform: jest.fn(() => 'darwin'),

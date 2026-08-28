@@ -94,6 +94,10 @@ Download the necessary environment files for the ESP32 platform:
 bscript board setup esp32
 ```
 
+:::tip No ESP-IDF? Use setup-lite
+If someone on your team already built the runtime (`bscript board build-runtime <board>` produces a `bundle-<board>` directory), you can skip the ESP-IDF installation: `bscript board setup-lite <board> --bundle <dir>` downloads only the Espressif clang compiler. See the [CLI reference](../../reference/cli.md#bscript-board-setup-lite-board-name).
+:::
+
 :::tip ESP32-S3
 If you use an ESP32-S3 board, replace `esp32` with `esp32s3` in this and the following commands (`bscript board setup esp32s3`, `bscript board flash-runtime esp32s3`, `bscript project create my-app -b esp32s3`). Both boards share one ESP-IDF installation, so setting up the second one is fast.
 :::

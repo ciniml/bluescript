@@ -5,7 +5,7 @@ import { GLOBAL_SETTINGS } from "../../config/constants";
 import * as fs from '../../core/fs';
 import * as path from 'path';
 import { CommonBoardEnv, createBoardEnv, Esp32Env } from "../../platforms/board-env";
-import { Esp32BoardConfig, GlobalConfig, GlobalConfigHandler } from "../../config/global-config";
+import { Esp32BoardConfig, GlobalConfig, GlobalConfigHandler, isEsp32IdfBoardConfig } from "../../config/global-config";
 import chalk from "chalk";
 import { ESP32_FAMILY_BOARD_NAMES, Esp32FamilyBoardName } from "../../config/board-utils";
 
@@ -90,6 +90,11 @@ class UpdateHandler extends CommandHandler {
                 return skip('not setup');
             }
             const esp32Config = this.oldGlobalConfig?.boards[board];
+            if (esp32Config && !isEsp32IdfBoardConfig(esp32Config)) {
+                // Clang-based environments carry no version-specific state besides the bundle.
+                this.globalConfigHandler.setBoardConfig(board, esp32Config);
+                return skip(`set up with clang; run 'bscript board setup-lite ${board}' again with a new runtime bundle if needed.`);
+            }
             const esp32Env = createBoardEnv(board);
             await this.updateEsp32(board, esp32Env, esp32Config);
         });
@@ -147,6 +152,7 @@ class UpdateHandler extends CommandHandler {
         let makeCommand = boardConfig?.toolchain.make ?? await esp32Env.getMakeCommand();
         const xtensaGccDir = await esp32Env.getXtensaGccDir(pythonCommand);
         this.globalConfigHandler.setBoardConfig(board, {
+            toolchainType: 'esp-idf',
             idfVersion: esp32Env.idfVersion,
             rootDir: esp32Env.espRootDir,
             exportFile: esp32Env.idfExportFile,

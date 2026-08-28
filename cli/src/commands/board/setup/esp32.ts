@@ -96,6 +96,7 @@ export abstract class Esp32SetupHandler extends SetupHandler {
     async setBoardConfig() {
         const xtensaGccDir = await this.boardEnv.getXtensaGccDir(this.pythonCommand!);
         this.globalConfigHandler.updateBoardConfig(this.boardName, {
+            toolchainType: 'esp-idf',
             idfVersion: this.boardEnv.idfVersion,
             rootDir: this.boardEnv.espRootDir,
             exportFile: this.boardEnv.idfExportFile,

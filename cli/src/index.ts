@@ -8,6 +8,7 @@ import { registerSetupCommand } from './commands/board/setup/index';
 import { registerRemoveCommand } from './commands/board/remove';
 import { registerFlashRuntimeCommand } from './commands/board/flash-runtime';
 import { registerBuildRuntimeCommand } from './commands/board/build-runtime';
+import { registerSetupLiteCommand } from './commands/board/setup-lite';
 import { registerListCommand } from './commands/board/list';
 import { registerCreateProjectCommand } from './commands/project/create';
 import { registerRunCommand } from './commands/project/run';
@@ -25,6 +26,7 @@ function registerBoardCommands(program: Command) {
         .description('manage board environments and configurations');
 
     registerSetupCommand(boardCommand);
+    registerSetupLiteCommand(boardCommand);
     registerRemoveCommand(boardCommand);
     registerFlashRuntimeCommand(boardCommand);
     registerBuildRuntimeCommand(boardCommand);

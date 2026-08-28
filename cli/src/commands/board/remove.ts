@@ -1,9 +1,11 @@
 import { Command } from "commander";
 import inquirer from 'inquirer';
-import { BoardName, isValidBoard, isEsp32FamilyBoard, ESP32_FAMILY_BOARD_NAMES } from "../../config/board-utils";
+import { BoardName, isValidBoard, isEsp32FamilyBoard, ESP32_FAMILY_BOARD_NAMES, Esp32FamilyBoardName } from "../../config/board-utils";
 import { logger, runStep, skip } from "../../core/logger";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { BoardEnv, createBoardEnv } from "../../platforms/board-env";
+import { ClangEnv } from "../../platforms/board-env/clang-env";
+import { isEsp32ClangBoardConfig } from "../../config/global-config";
 
 
 class RemoveHandler extends CommandHandlerWithUpdateCheck {
@@ -18,6 +20,10 @@ class RemoveHandler extends CommandHandlerWithUpdateCheck {
 
     async remove() {
         await runStep('Removing...', async () => {
+            if (this.usesClang()) {
+                this.removeClangEnvironment();
+                return;
+            }
             if (this.isBoardRootShared()) {
                 return skip(`the ESP-IDF installation is still used by ${this.otherBoardsSharingRoot().join(', ')}.`);
             }
@@ -25,6 +31,26 @@ class RemoveHandler extends CommandHandlerWithUpdateCheck {
         });
         this.globalConfigHandler.removeBoardConfig(this.boardName);
         this.globalConfigHandler.save();
+    }
+
+    private usesClang(): boolean {
+        if (!isEsp32FamilyBoard(this.boardName)) return false;
+        const config = this.globalConfigHandler.getBoardConfig(this.boardName);
+        return config !== undefined && isEsp32ClangBoardConfig(config);
+    }
+
+    // Remove the runtime bundle, and the clang installation if no other board uses it.
+    private removeClangEnvironment() {
+        const clangEnv = new ClangEnv();
+        clangEnv.removeBundle(this.boardName as Esp32FamilyBoardName);
+        const othersUsingClang = ESP32_FAMILY_BOARD_NAMES.filter(b => {
+            if (b === this.boardName) return false;
+            const c = this.globalConfigHandler.getBoardConfig(b);
+            return c !== undefined && isEsp32ClangBoardConfig(c);
+        });
+        if (othersUsingClang.length === 0) {
+            clangEnv.removeClang();
+        }
     }
 
     // Boards of the ESP32 family share one ESP-IDF installation.

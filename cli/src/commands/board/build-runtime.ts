@@ -1,11 +1,11 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { logger } from "../../core/logger";
+import { logger, runStep } from "../../core/logger";
 import { DEFAULT_DEVICE_NAME } from "../../config/project-config";
 import { getFlashRuntimeHandler } from "./flash-runtime";
 
 
-export async function handleBuildRuntimeCommand(board: string, options: { deviceName?: string }) {
+export async function handleBuildRuntimeCommand(board: string, options: { deviceName?: string, bundle?: boolean }) {
     try {
         const handler = getFlashRuntimeHandler(board);
 
@@ -15,10 +15,20 @@ export async function handleBuildRuntimeCommand(board: string, options: { device
         }
 
         const buildDir = await handler.build(options.deviceName);
+        let bundleDir: string | undefined;
+        if (options.bundle !== false) {
+            await runStep('Creating the runtime bundle...', async () => {
+                bundleDir = handler.createBundle();
+            });
+        }
 
         logger.br();
         logger.success(`Success to build the BlueScript runtime for ${board}`);
         logger.info(`Build artifacts: ${chalk.yellow(buildDir)}`);
+        if (bundleDir) {
+            logger.info(`Runtime bundle: ${chalk.yellow(bundleDir)}`);
+            logger.info(`On a machine without ESP-IDF, copy the bundle and run ${chalk.yellow(`bscript board setup-lite ${board} --bundle <dir>`)}`);
+        }
         logger.info('To flash from another host, copy the build directory there and run:');
         logger.info(`  ${chalk.yellow(`esptool.py --chip ${board} -p <port> write_flash @flash_args`)} (in the copied directory)`);
         logger.info(`or connect the board to this host and run ${chalk.yellow(`bscript board flash-runtime ${board}`)}`);
@@ -35,5 +45,6 @@ export function registerBuildRuntimeCommand(program: Command) {
         .description('build the BlueScript runtime for the board without flashing it.')
         .argument('<board-name>', 'the name of the board to build for (e.g., esp32, esp32s3)')
         .option('-d, --device-name <device-name>', `BLE device name embedded in the runtime, the default is '${DEFAULT_DEVICE_NAME}'`)
+        .option('--no-bundle', 'do not create the runtime bundle')
         .action(handleBuildRuntimeCommand);
 }

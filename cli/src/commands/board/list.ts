@@ -10,8 +10,11 @@ class ListHandler extends CommandHandlerWithUpdateCheck {
         const supportedBoards = BOARD_NAMES;
         logger.log('Available boards:');
         supportedBoards.forEach(board => {
-            const isSetup = this.globalConfigHandler.isBoardSetup(board);
-            logger.log(' --', board, isSetup ? ` - ${chalk.green('set up')}` : ` - ${chalk.gray('not set up')}`);
+            const config = this.globalConfigHandler.getBoardConfig(board) as { toolchainType?: string } | undefined;
+            const status = config === undefined
+                ? chalk.gray('not set up')
+                : config.toolchainType === 'clang' ? chalk.green('set up (clang, no ESP-IDF)') : chalk.green('set up');
+            logger.log(' --', board, ` - ${status}`);
         });
     }
 }

@@ -60,7 +60,7 @@ describe('GlobalConfigHandler', () => {
         expect(getGlobalConfig()).toEqual({
             version: GLOBAL_SETTINGS.VM_VERSION,
             boards: {
-                esp32: boardConfig
+                esp32: { toolchainType: 'esp-idf', ...boardConfig }
             }
         });
     });

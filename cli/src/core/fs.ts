@@ -35,6 +35,11 @@ export function removeFile(path: string) {
     fs.rmSync(path);
 }
 
+export async function downloadFile(url: string, destPath: string) {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    writeFile(destPath, Buffer.from(response.data));
+}
+
 export async function downloadAndUnzip(url: string, outDir: string) {
     const tmpZipPath = `${outDir}/tmp.zip`;
     const response = await axios.get(url, {

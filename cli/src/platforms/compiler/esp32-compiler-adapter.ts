@@ -1,4 +1,4 @@
-import { GlobalConfigHandler, Esp32BoardConfig } from "../../config/global-config";
+import { GlobalConfigHandler, Esp32BoardConfig, isEsp32IdfBoardConfig } from "../../config/global-config";
 import { ProjectConfigHandler, PROJECT_DEFAULT_PATHS } from "../../config/project-config";
 import { Esp32FamilyBoardName } from "../../config/board-utils";
 import {
@@ -11,7 +11,7 @@ import * as path from 'path';
 
 // Memory layouts used only for `project check` (no device is connected).
 // The real layout is obtained from the device at runtime.
-const DUMMY_MEMORY_LAYOUTS: Record<Esp32FamilyBoardName, MemoryLayout> = {
+export const DUMMY_MEMORY_LAYOUTS: Record<Esp32FamilyBoardName, MemoryLayout> = {
     esp32: {
         iram: { address: 0x40096c34, size: 1000000 },
         dram: { address: 0x3ffd5b1c, size: 1000000 },
@@ -38,8 +38,8 @@ export class Esp32CompilerAdapter implements CompilerAdapter {
     ) {
         this.boardName = boardName;
         const boardConfig = this.globalConfigHandler.getBoardConfig(boardName);
-        if (boardConfig === undefined) {
-            throw new Error(`The environment for ${this.boardName} is not set up.`);
+        if (boardConfig === undefined || !isEsp32IdfBoardConfig(boardConfig)) {
+            throw new Error(`The ESP-IDF environment for ${this.boardName} is not set up.`);
         }
         this.boardConfig = boardConfig;
     }
@@ -85,7 +85,7 @@ export class Esp32CompilerAdapter implements CompilerAdapter {
 }
 
 
-function createEsp32PackageReader(
+export function createEsp32PackageReader(
     boardName: Esp32FamilyBoardName,
     projectConfigHandler: ProjectConfigHandler,
 ): (name: string) => PackageForEsp32 {

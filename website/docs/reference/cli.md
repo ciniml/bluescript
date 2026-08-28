@@ -209,11 +209,40 @@ Builds the BlueScript runtime for the board **without flashing it**. Useful when
 | :--- | :--- | :--- |
 | `--device-name <name>` | `-d` | BLE device name embedded in the runtime (default `BlueScript`). |
 
+By default the command also writes a *runtime bundle* (`ports/esp32/bundle-<board>` under the runtime directory) that can be copied to a machine without ESP-IDF and installed with `bscript board setup-lite`. Pass `--no-bundle` to skip it.
+
 **Example:**
 
 ```bash
 bscript board build-runtime esp32s3 -d my-device
 ```
+
+### `bscript board setup-lite <board-name>`
+
+Sets up an ESP32-family board **without installing ESP-IDF**. Instead of the 2 GB ESP-IDF environment, this downloads the prebuilt [Espressif clang](https://github.com/espressif/llvm-project/releases) (about 400 MB to download) and uses a *runtime bundle* — the prebuilt runtime firmware plus the files needed to link user code against it. The bundle is produced by `bscript board build-runtime` on a machine that has ESP-IDF.
+
+**Arguments:**
+
+*   `<board-name>`: The target board identifier (`esp32` or `esp32s3`).
+
+**Options:**
+
+| Option | Description |
+| :--- | :--- |
+| `--bundle <dir>` | (Required) Runtime bundle directory created by `bscript board build-runtime`. |
+
+**Example:**
+
+```bash
+bscript board setup-lite esp32s3 --bundle ./bundle-esp32s3
+bscript board flash-runtime esp32s3     # flashes the bundle with esptool (pip install esptool)
+```
+
+**Limitations of the lite environment:**
+
+*   Projects that use `espIdfComponents` cannot be compiled (ESP-IDF component libraries are not available).
+*   The BLE device name is fixed to the one the bundle was built with (`--device-name` is not supported).
+*   `bscript board build-runtime` is not available.
 
 ### `bscript board list`
 

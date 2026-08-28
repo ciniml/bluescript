@@ -26,7 +26,8 @@ jest.mock('../src/core/logger', () => {
 jest.mock('../src/core/fs', () => {
     return {
         ...jest.requireActual('../src/core/fs'),
-        downloadAndUnzip: jest.fn()
+        downloadAndUnzip: jest.fn(),
+    downloadFile: jest.fn()
     }
 })
 

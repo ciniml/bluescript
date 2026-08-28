@@ -34,6 +34,20 @@ export class Package {
         }, [this.resolvedBuildDir]);
         return objects;
     }
+    get cFilesInDist(): AbsolutePath[] {
+        const sources: AbsolutePath[] = [];
+        this.walkFiles(this.resolvedDistDir, (name, fullPath) => {
+            if (fullPath.endsWith('.c')) {
+                sources.push(fullPath);
+            }
+        }, [this.resolvedBuildDir]);
+        return sources;
+    }
+
+    objectFileOf(cFileInDist: AbsolutePath): AbsolutePath {
+        return this.toObjectFile(cFileInDist);
+    }
+
     get headerFilesInDist(): AbsolutePath[] {
         const headers: AbsolutePath[] = [];
         this.walkFiles(this.resolvedDistDir, (name, fullPath) => {
