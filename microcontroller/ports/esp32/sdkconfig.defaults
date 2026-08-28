@@ -14,3 +14,10 @@ CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y
 # Partition table with the iflash/dflash partitions used for dynamically loaded code
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+#
+# BlueScript executes code that is loaded into RAM at runtime, so the heap must
+# be able to hand out executable memory (MALLOC_CAP_EXEC). On ESP32-S3 (and
+# other chips with PMS) memory protection is enabled by default and removes
+# executable memory from the heap, which makes bs_memory_init() fail.
+CONFIG_ESP_SYSTEM_MEMPROT_FEATURE=n
+CONFIG_ESP_SYSTEM_MEMPROT_FEATURE_LOCK=n
