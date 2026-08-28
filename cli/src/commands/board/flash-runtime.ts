@@ -14,18 +14,28 @@ import { DEFAULT_DEVICE_NAME } from "../../config/project-config";
 
 const RUNTIME_ESP_PORT_DIR = (runtimeDir: string) => path.join(runtimeDir, 'ports/esp32');
 
-abstract class FlashRuntimeHandler extends CommandHandlerWithUpdateCheck {
+export abstract class FlashRuntimeHandler extends CommandHandlerWithUpdateCheck {
     abstract isSetup(): boolean;
     abstract eraseFlash(port: string): Promise<void>;
     abstract flashRuntime(port: string, deviceName?: string): Promise<void>;
+    // Build the runtime without flashing it. Returns the directory that holds the build artifacts.
+    abstract buildRuntime(deviceName?: string): Promise<string>;
 
     async flash(port: string, deviceName?: string) {
         await runStep('Erasing flash...', () => this.eraseFlash(port));
         await runStep('Flashing BlueScript runtime...', () => this.flashRuntime(port, deviceName));
     }
+
+    async build(deviceName?: string): Promise<string> {
+        let buildDir = '';
+        await runStep('Building BlueScript runtime...', async () => {
+            buildDir = await this.buildRuntime(deviceName);
+        });
+        return buildDir;
+    }
 }
 
-class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
+export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     readonly boardName: Esp32FamilyBoardName;
 
     constructor(boardName: Esp32FamilyBoardName = 'esp32') {
@@ -59,6 +69,14 @@ class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
         );
     }
 
+    async buildRuntime(deviceName?: string): Promise<string> {
+        deviceName = deviceName ?? DEFAULT_DEVICE_NAME;
+        await this.runIdfPy(
+            [...this.targetArgs, '-D', `DEVICE_NAME=${deviceName}`, 'build'],
+        );
+        return path.join(this.getEspPortDir(), ESP32_TARGET_BUILD_DIRS[this.boardName]);
+    }
+
     private async runIdfPy(args: string[]) {
         const osType = os.platform();
         const exportFile = this.getExportFile();
@@ -84,7 +102,7 @@ class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     }
 }
 
-function getFlashRuntimeHandler(board: string) {
+export function getFlashRuntimeHandler(board: string) {
     if (board === 'host') {
         throw new Error('flash-runtime is not supported for the host board');
     }

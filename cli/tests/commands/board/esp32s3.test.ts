@@ -178,3 +178,34 @@ describe('esp32s3 board', () => {
         });
     });
 });
+
+describe('board build-runtime', () => {
+    beforeAll(() => { spyGlobalSettings('build-runtime'); });
+    beforeEach(() => { deleteGlobalEnv(); });
+    afterEach(() => { jest.clearAllMocks(); deleteGlobalEnv(); });
+
+    it('builds the esp32s3 runtime without flashing and reports the build directory', async () => {
+        const { handleBuildRuntimeCommand } = await import('../../../src/commands/board/build-runtime');
+        setupGlobalEnvWithEsp32AndEsp32s3();
+        mockedExecShell.mockImplementation(async () => {});
+
+        await handleBuildRuntimeCommand('esp32s3', { deviceName: 'my-s3' });
+
+        expect(mockedExecShell).toHaveBeenCalledTimes(1);
+        const [cmd] = mockedExecShell.mock.calls[0];
+        expect(cmd).toContain('-B build-esp32s3 -D IDF_TARGET=esp32s3 -D SDKCONFIG=sdkconfig.esp32s3 -D DEVICE_NAME=my-s3 build');
+        expect(cmd).not.toContain('flash');
+        expect(mockedLogger.info).toHaveBeenCalledWith(expect.stringContaining(path.join('ports', 'esp32', 'build-esp32s3')));
+        expect(mockedLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('warns when the board is not set up', async () => {
+        const { handleBuildRuntimeCommand } = await import('../../../src/commands/board/build-runtime');
+        setupGlobalEnvWithEsp32();
+
+        await handleBuildRuntimeCommand('esp32s3', {});
+
+        expect(mockedLogger.warn).toHaveBeenCalledWith(expect.stringContaining('esp32s3 is not set up'));
+        expect(mockedExecShell).not.toHaveBeenCalled();
+    });
+});

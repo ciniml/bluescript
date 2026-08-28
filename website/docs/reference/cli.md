@@ -195,6 +195,26 @@ bscript board flash-runtime esp32 -d my-device
 
 ---
 
+### `bscript board build-runtime <board-name>`
+
+Builds the BlueScript runtime for the board **without flashing it**. Useful when the board is connected to another host: copy the printed build directory there and flash it with `esptool.py --chip <board> -p <port> write_flash @flash_args`, or connect the board to this host and run `bscript board flash-runtime`.
+
+**Arguments:**
+
+*   `<board-name>`: The target board identifier (`esp32` or `esp32s3`).
+
+**Options:**
+
+| Option | Alias | Description |
+| :--- | :--- | :--- |
+| `--device-name <name>` | `-d` | BLE device name embedded in the runtime (default `BlueScript`). |
+
+**Example:**
+
+```bash
+bscript board build-runtime esp32s3 -d my-device
+```
+
 ### `bscript board list`
 
 Lists all board architectures currently supported by the installed CLI version (`esp32`, `esp32s3`, and `host`).
