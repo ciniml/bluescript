@@ -6,6 +6,9 @@
 #include "esp_partition.h"
 #include "esp_heap_caps.h"
 #include "esp_memory_utils.h"
+#if !CONFIG_IDF_TARGET_ESP32
+#include "hal/cache_hal.h"
+#endif
 
 #include "include/memory.h"
 #include "include/utils.h"
@@ -14,6 +17,7 @@
 #define ALIGN_UP(size, align) (((size) + ((align) - 1)) & ~((align) - 1))
 #define ALIGN_DOWN(size, align)  ((size) & ~((align) - 1))
 #define MIN(a, b) (a > b ? b : a)
+#define MAX(a, b) (a > b ? a : b)
 
 // RAM
 #define DEFAULT_IRAM_SIZE 10000
@@ -88,14 +92,48 @@ static void dram_reset() {
     memset(dram_address, 0, dram_size);
 }
 
+// Drop cached copies of a memory-mapped flash region. ESP-IDF invalidates the
+// cache when it writes to mapped flash, but on chips with separate instruction
+// and data caches (e.g. ESP32-S3) code that was already executed from the region
+// has been observed to stay stale, so the runtime invalidates explicitly.
+static void flash_cache_invalidate(const void* vaddr, uint32_t len) {
+#if !CONFIG_IDF_TARGET_ESP32
+    uint32_t start = ALIGN_DOWN((uint32_t)vaddr, 64);
+    uint32_t end = ALIGN_UP((uint32_t)vaddr + len, 64);
+    cache_hal_invalidate_addr(start, end - start);
+#endif
+}
+
+// Read back what was just written through the memory mapping and report a
+// mismatch. Word-wise, since the instruction bus does not support byte loads.
+static void flash_verify(const void* dest, const void* src, uint32_t len, const char* name) {
+    if (((uint32_t)dest & 3) != 0) {
+        return;
+    }
+    const uint32_t* d = (const uint32_t*)dest;
+    const uint8_t* s = (const uint8_t*)src;
+    for (uint32_t i = 0; i + 4 <= len; i += 4) {
+        uint32_t expected;
+        memcpy(&expected, s + i, 4);
+        if (d[i / 4] != expected) {
+            BS_LOG_ERROR("%s: read-back mismatch at %p after write (stale cache?)", name, (const void*)(d + i / 4))
+            return;
+        }
+    }
+}
+
 static void iflash_reset() {
     uint32_t aligned_used_size = ALIGN_UP(iflash_used, iflash_partition->erase_size);
     esp_partition_erase_range(iflash_partition, 0, aligned_used_size);
+    flash_cache_invalidate(mapped_iflash_address, aligned_used_size);
+    iflash_used = 0;
 }
 
 static void dflash_reset() {
     uint32_t aligned_used_size = ALIGN_UP(dflash_used, dflash_partition->erase_size);
     esp_partition_erase_range(dflash_partition, 0, aligned_used_size);
+    flash_cache_invalidate(mapped_dflash_address, aligned_used_size);
+    dflash_used = 0;
 }
 
 void bs_memory_init() {
@@ -132,13 +170,17 @@ static void ram_memcpy(void* dest, void *src, uint32_t len) {
 static void iflash_memcpy(void* dest, void *src, uint32_t len) {
     int offset = (uint8_t*)dest - (uint8_t*)mapped_iflash_address;
     esp_partition_write(iflash_partition, offset, src, len);
-    iflash_used += len;
+    flash_cache_invalidate(dest, len);
+    flash_verify(dest, src, len, "IFlash");
+    iflash_used = MAX(iflash_used, (uint32_t)offset + len);
 }
 
 static void dflash_memcpy(void* dest, void *src, uint32_t len) {
     int offset = (uint8_t*)dest - (uint8_t*)mapped_dflash_address;
     esp_partition_write(dflash_partition, offset, src, len);
-    dflash_used += len;
+    flash_cache_invalidate(dest, len);
+    flash_verify(dest, src, len, "DFlash");
+    dflash_used = MAX(dflash_used, (uint32_t)offset + len);
 }
 
 void bs_memory_memcpy(void* dest, void *src, uint32_t len) {
