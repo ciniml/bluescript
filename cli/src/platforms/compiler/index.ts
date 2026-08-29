@@ -5,7 +5,7 @@ import { CompilerAdapter } from "../compiler/compiler-adapter";
 import { Esp32CompilerAdapter } from "../compiler/esp32-compiler-adapter";
 import { HostCompilerAdapter } from "../compiler/host-compiler-adapter";
 import { Esp32ClangCompilerAdapter } from "../compiler/esp32-clang-compiler-adapter";
-import { isEsp32ClangBoardConfig } from "../../config/global-config";
+import { isEsp32BundleBoardConfig } from "../../config/global-config";
 
 export { CompilerAdapter, CompileContext } from "../compiler/compiler-adapter";
 
@@ -17,7 +17,7 @@ export function getCompilerAdapter(
 ): CompilerAdapter {
     if (isEsp32FamilyBoard(boardName)) {
         const boardConfig = globalConfigHandler.getBoardConfig(boardName);
-        if (boardConfig && isEsp32ClangBoardConfig(boardConfig)) {
+        if (boardConfig && isEsp32BundleBoardConfig(boardConfig)) {
             return new Esp32ClangCompilerAdapter(globalConfigHandler, projectConfigHandler, boardName);
         }
         return new Esp32CompilerAdapter(globalConfigHandler, projectConfigHandler, boardName);

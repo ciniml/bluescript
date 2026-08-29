@@ -13,7 +13,8 @@ class ListHandler extends CommandHandlerWithUpdateCheck {
             const config = this.globalConfigHandler.getBoardConfig(board) as { toolchainType?: string } | undefined;
             const status = config === undefined
                 ? chalk.gray('not set up')
-                : config.toolchainType === 'clang' ? chalk.green('set up (clang, no ESP-IDF)') : chalk.green('set up');
+                : config.toolchainType === 'clang' ? chalk.green('set up (clang, no ESP-IDF)')
+                : config.toolchainType === 'wasm' ? chalk.green('set up (wasm toolchain, no ESP-IDF)') : chalk.green('set up');
             logger.log(' --', board, ` - ${status}`);
         });
     }

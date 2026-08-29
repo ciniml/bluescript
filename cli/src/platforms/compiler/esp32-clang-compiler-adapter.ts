@@ -1,4 +1,4 @@
-import { GlobalConfigHandler, Esp32ClangBoardConfig, isEsp32ClangBoardConfig } from "../../config/global-config";
+import { GlobalConfigHandler, Esp32ClangBoardConfig, Esp32WasmBoardConfig, isEsp32BundleBoardConfig } from "../../config/global-config";
 import { ProjectConfigHandler } from "../../config/project-config";
 import { Esp32FamilyBoardName } from "../../config/board-utils";
 import {
@@ -11,7 +11,7 @@ import { createEsp32PackageReader, DUMMY_MEMORY_LAYOUTS } from "./esp32-compiler
 
 export class Esp32ClangCompilerAdapter implements CompilerAdapter {
     readonly boardName: Esp32FamilyBoardName;
-    private boardConfig: Esp32ClangBoardConfig;
+    private boardConfig: Esp32ClangBoardConfig | Esp32WasmBoardConfig;
     private compiler?: CompilerSession<PackageForEsp32, MemoryImage>;
 
     constructor(
@@ -21,7 +21,7 @@ export class Esp32ClangCompilerAdapter implements CompilerAdapter {
     ) {
         this.boardName = boardName;
         const boardConfig = this.globalConfigHandler.getBoardConfig(boardName);
-        if (boardConfig === undefined || !isEsp32ClangBoardConfig(boardConfig)) {
+        if (boardConfig === undefined || !isEsp32BundleBoardConfig(boardConfig)) {
             throw new Error(`The clang environment for ${this.boardName} is not set up.`);
         }
         this.boardConfig = boardConfig;
@@ -53,10 +53,15 @@ export class Esp32ClangCompilerAdapter implements CompilerAdapter {
     }
 
     private getCompilerConfig(): Esp32ClangToolchainConfig {
-        return {
+        const config: Esp32ClangToolchainConfig = {
             bundleDir: this.boardConfig.bundleDir,
             target: this.boardName,
             toolchain: this.boardConfig.toolchain,
         };
+        if (this.boardConfig.toolchainType === 'wasm') {
+            config.runner = 'wasm';
+            config.resourceDir = this.boardConfig.resourceDir;
+        }
+        return config;
     }
 }

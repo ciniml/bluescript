@@ -10,7 +10,7 @@ import { execShell } from '../../core/command-exec';
 import chalk from "chalk";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { DEFAULT_DEVICE_NAME } from "../../config/project-config";
-import { isEsp32ClangBoardConfig, isEsp32IdfBoardConfig } from "../../config/global-config";
+import { isEsp32BundleBoardConfig, isEsp32IdfBoardConfig } from "../../config/global-config";
 import { createRuntimeBundle } from "../../platforms/runtime-bundle";
 import { simpleExec } from '../../core/command-exec';
 
@@ -66,12 +66,12 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     // True when the board was set up with `setup-lite` (clang + runtime bundle, no ESP-IDF).
     private get usesBundle(): boolean {
         const config = this.globalConfigHandler.getBoardConfig(this.boardName);
-        return config !== undefined && isEsp32ClangBoardConfig(config);
+        return config !== undefined && isEsp32BundleBoardConfig(config);
     }
 
     private get bundleFlashDir(): string {
         const config = this.globalConfigHandler.getBoardConfig(this.boardName);
-        if (!config || !isEsp32ClangBoardConfig(config)) {
+        if (!config || !isEsp32BundleBoardConfig(config)) {
             throw new Error('An unexpected error occurred: cannot find the runtime bundle.');
         }
         return path.join(config.bundleDir, 'flash');

@@ -5,7 +5,8 @@ import { logger, runStep, skip } from "../../core/logger";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { BoardEnv, createBoardEnv } from "../../platforms/board-env";
 import { ClangEnv } from "../../platforms/board-env/clang-env";
-import { isEsp32ClangBoardConfig } from "../../config/global-config";
+import { isEsp32ClangBoardConfig, isEsp32WasmBoardConfig, isEsp32BundleBoardConfig } from "../../config/global-config";
+import { WasmToolchainEnv } from "../../platforms/board-env/wasm-toolchain-env";
 
 
 class RemoveHandler extends CommandHandlerWithUpdateCheck {
@@ -36,20 +37,24 @@ class RemoveHandler extends CommandHandlerWithUpdateCheck {
     private usesClang(): boolean {
         if (!isEsp32FamilyBoard(this.boardName)) return false;
         const config = this.globalConfigHandler.getBoardConfig(this.boardName);
-        return config !== undefined && isEsp32ClangBoardConfig(config);
+        return config !== undefined && isEsp32BundleBoardConfig(config);
     }
 
-    // Remove the runtime bundle, and the clang installation if no other board uses it.
+    // Remove the runtime bundle, and the toolchain installation if no other board uses it.
     private removeClangEnvironment() {
+        const config = this.globalConfigHandler.getBoardConfig(this.boardName as Esp32FamilyBoardName)!;
         const clangEnv = new ClangEnv();
         clangEnv.removeBundle(this.boardName as Esp32FamilyBoardName);
-        const othersUsingClang = ESP32_FAMILY_BOARD_NAMES.filter(b => {
+        const othersUsing = (pred: (c: NonNullable<typeof config>) => boolean) => ESP32_FAMILY_BOARD_NAMES.some(b => {
             if (b === this.boardName) return false;
             const c = this.globalConfigHandler.getBoardConfig(b);
-            return c !== undefined && isEsp32ClangBoardConfig(c);
+            return c !== undefined && pred(c);
         });
-        if (othersUsingClang.length === 0) {
+        if (isEsp32ClangBoardConfig(config) && !othersUsing(isEsp32ClangBoardConfig)) {
             clangEnv.removeClang();
+        }
+        if (isEsp32WasmBoardConfig(config) && !othersUsing(isEsp32WasmBoardConfig)) {
+            new WasmToolchainEnv().remove();
         }
     }
 

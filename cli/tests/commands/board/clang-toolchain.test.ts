@@ -180,3 +180,90 @@ describe('clang toolchain (setup-lite)', () => {
         expect(Object.keys(getGlobalConfig().boards)).not.toContain('esp32s3');
     });
 });
+
+describe('wasm toolchain (setup-lite --toolchain wasm)', () => {
+    const { WasmToolchainEnv } = require('../../../src/platforms/board-env/wasm-toolchain-env');
+
+    function fakeWasmInstall(env: any) {
+        fs.makeDir(env.binDir);
+        fs.makeDir(path.join(env.rootDir, 'lib/clang/21/include'));
+        for (const b of ['clang.js', 'clang.wasm', 'lld.js', 'lld.wasm', 'llvm-ar.js', 'llvm-ar.wasm']) {
+            fs.writeFile(path.join(env.binDir, b), '');
+        }
+        fs.writeFile(env.manifestFile, JSON.stringify({ name: 'bluescript-wasm-toolchain', llvm: 'esp-21.1.3', clangResourceDir: 'lib/clang/21' }));
+    }
+
+    beforeAll(() => { spyGlobalSettings('wasm'); });
+    beforeEach(() => { deleteGlobalEnv(); jest.clearAllMocks(); });
+    afterAll(() => { deleteGlobalEnv(); });
+
+    it('downloads and extracts the wasm toolchain and writes a wasm board config', async () => {
+        setupEmpyGlobalEnv();
+        const env = new WasmToolchainEnv();
+        const source = path.join(GLOBAL_SETTINGS.BLUESCRIPT_DIR, 'source-bundle');
+        makeBundle(source);
+        mockedInquirer.prompt.mockResolvedValue({ proceed: true });
+        mockedSimpleExec.mockResolvedValue('');
+        mockedDownloadFile.mockImplementation(async (_url, dest) => { fs.writeFile(dest, ''); });
+        mockedExecWithLog.mockImplementation(async (cmd) => { if (cmd === 'tar') fakeWasmInstall(env); return ''; });
+
+        await handleSetupLiteCommand('esp32s3', { bundle: source, toolchain: 'wasm' });
+
+        expect(mockedDownloadFile).toHaveBeenCalledWith(expect.stringContaining('wasm-toolchain'), expect.any(String));
+        const config = getGlobalConfig();
+        expect(config.boards.esp32s3.toolchainType).toBe('wasm');
+        expect(config.boards.esp32s3.toolchain.clang).toBe(path.join(env.binDir, 'clang.js'));
+        expect(config.boards.esp32s3.resourceDir).toBe(path.join(env.rootDir, 'lib/clang/21'));
+        expect(mockedLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('installs the wasm toolchain from a local directory without downloading', async () => {
+        setupEmpyGlobalEnv();
+        const env = new WasmToolchainEnv();
+        const local = path.join(GLOBAL_SETTINGS.BLUESCRIPT_DIR, 'local-wasm');
+        fakeWasmInstall({ rootDir: local, binDir: path.join(local, 'bin'), manifestFile: path.join(local, 'toolchain.json') });
+        const source = path.join(GLOBAL_SETTINGS.BLUESCRIPT_DIR, 'source-bundle');
+        makeBundle(source);
+        mockedInquirer.prompt.mockResolvedValue({ proceed: true });
+        mockedSimpleExec.mockResolvedValue('');
+
+        await handleSetupLiteCommand('esp32s3', { bundle: source, toolchain: 'wasm', wasmToolchain: local });
+
+        expect(mockedDownloadFile).not.toHaveBeenCalled();
+        expect(env.isInstalled()).toBe(true);
+        expect(getGlobalConfig().boards.esp32s3.toolchainType).toBe('wasm');
+    });
+
+    it('selects the clang adapter (wasm runner) and flashes with esptool', async () => {
+        setupEmpyGlobalEnv();
+        const env = new WasmToolchainEnv();
+        fakeWasmInstall(env);
+        makeBundle(new ClangEnv().bundleDir('esp32s3'));
+        setupGlobalEnv({
+            version: DUMMY_VM_VERSION,
+            runtimeDir: getTestRuntimeDir(),
+            boards: { esp32s3: {
+                toolchainType: 'wasm', toolchainVersion: 'esp-21.1.3', rootDir: env.rootDir,
+                bundleDir: new ClangEnv().bundleDir('esp32s3'), resourceDir: path.join(env.rootDir, 'lib/clang/21'),
+                toolchain: { clang: env.clangFile, ar: env.arFile, ld: env.ldFile },
+            } },
+        });
+        const global = GlobalConfigHandler.load();
+        const projectRoot = path.join(GLOBAL_SETTINGS.BLUESCRIPT_DIR, 'proj');
+        fs.makeDir(projectRoot);
+        const project = ProjectConfigHandler.createTemplate('proj', 'esp32s3', projectRoot);
+        expect(getCompilerAdapter('esp32s3', global, project)).toBeInstanceOf(Esp32ClangCompilerAdapter);
+
+        mockedSimpleExec.mockImplementation(async (cmd, args) => {
+            if (cmd === 'python3' && args[1] === 'esptool') return 'esptool.py v4';
+            throw new Error('not found');
+        });
+        mockedExecShell.mockResolvedValue(undefined as never);
+        await handleFlashRuntimeCommand('esp32s3', { port: '/dev/ttyACM0' });
+        expect(mockedExecShell.mock.calls[1][0]).toContain('write_flash @flash_args');
+
+        mockedInquirer.prompt.mockResolvedValue({ proceed: true });
+        await handleRemoveCommand('esp32s3', {});
+        expect(fs.exists(env.rootDir)).toBe(false);
+    });
+});

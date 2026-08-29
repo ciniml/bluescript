@@ -230,13 +230,20 @@ Sets up an ESP32-family board **without installing ESP-IDF**. Instead of the 2 G
 | Option | Description |
 | :--- | :--- |
 | `--bundle <dir>` | (Required) Runtime bundle directory created by `bscript board build-runtime`. |
+| `--toolchain <type>` | `clang` (default): download the native Espressif clang (about 400 MB). `wasm`: install a WebAssembly build of clang/lld that runs inside Node.js (about 18 MB download, no native compiler at all). |
+| `--wasm-toolchain <path-or-url>` | With `--toolchain wasm`: use this archive (`.tar.xz`), directory or URL instead of the default release download. |
 
 **Example:**
 
 ```bash
 bscript board setup-lite esp32s3 --bundle ./bundle-esp32s3
 bscript board flash-runtime esp32s3     # flashes the bundle with esptool (pip install esptool)
+
+# Fully self-contained: no native compiler, only Node.js
+bscript board setup-lite esp32s3 --bundle ./bundle-esp32s3 --toolchain wasm
 ```
+
+The `wasm` toolchain is built from Espressif's LLVM with Emscripten (see `tools/wasm-toolchain` in the repository). Compiling a REPL line takes about one second, roughly three times longer than with the native clang.
 
 **Limitations of the lite environment:**
 

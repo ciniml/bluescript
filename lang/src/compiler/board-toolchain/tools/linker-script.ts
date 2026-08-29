@@ -7,7 +7,10 @@ export default function generateLinkerScript(
     definedSymbols: {name: string, address: number}[],
     entryPoint: string,
     subModuleEntryPoints: string[],
-    includeFiles: string[]
+    includeFiles: string[],
+    // Function applied to the paths of the included linker scripts (e.g. to
+    // map host paths into a WebAssembly module's filesystem).
+    includePathMapper: (p: string) => string = p => p,
 ): string {
     const iramMemory = new MemoryRegion(
       "IRAM", 
@@ -53,7 +56,7 @@ export default function generateLinkerScript(
 
     return new LinkerScript()
         .group(inputFiles)
-        .includes(includeFiles)
+        .includes(includeFiles.map(includePathMapper))
         .entry(entryPoint)
         .extern(subModuleEntryPoints)
         .memory([iramMemory, dramMemory, iflashMemory, dflashMemory, externalMemory])

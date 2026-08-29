@@ -7,6 +7,7 @@ import { logger, runStep, skip } from "../../core/logger";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { Esp32FamilyBoardName, isEsp32FamilyBoard } from "../../config/board-utils";
 import { ClangEnv } from "../../platforms/board-env/clang-env";
+import { WasmToolchainEnv } from "../../platforms/board-env/wasm-toolchain-env";
 import { readRuntimeBundleManifest } from "@bscript/lang";
 import { GLOBAL_SETTINGS } from "../../config/constants";
 import { isPackageInstalledOnUnix, isPackageInstalledOnWindows } from "../../platforms/board-env/common-env";
@@ -16,15 +17,22 @@ import * as os from 'os';
 // Sets up a board with the Espressif clang toolchain and a prebuilt runtime bundle.
 // No ESP-IDF installation is needed; the bundle is produced by
 // `bscript board build-runtime <board>` on a machine that has ESP-IDF.
+export type LiteToolchainType = 'clang' | 'wasm';
+
 export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
     readonly boardName: Esp32FamilyBoardName;
     readonly clangEnv = new ClangEnv();
+    readonly wasmEnv = new WasmToolchainEnv();
     private bundleSourceDir: string;
+    private toolchainType: LiteToolchainType;
+    private wasmSource?: string;
 
-    constructor(boardName: Esp32FamilyBoardName, bundleSourceDir: string) {
+    constructor(boardName: Esp32FamilyBoardName, bundleSourceDir: string, toolchainType: LiteToolchainType = 'clang', wasmSource?: string) {
         super();
         this.boardName = boardName;
         this.bundleSourceDir = bundleSourceDir;
+        this.toolchainType = toolchainType;
+        this.wasmSource = wasmSource;
     }
 
     needSetup() {
@@ -32,9 +40,12 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
     }
 
     getSetupPlan(): string[] {
+        const toolchainStep = this.toolchainType === 'wasm'
+            ? `Install the WebAssembly toolchain ${this.wasmEnv.version} from ${this.wasmSource ?? this.wasmEnv.downloadUrl} into ${this.wasmEnv.rootDir}, if needed.`
+            : `Download Espressif clang ${this.clangEnv.clangVersion} (${this.clangEnv.downloadUrl}) into ${this.clangEnv.clangRootDir}, if needed.`;
         return [
             `Verify the runtime bundle at ${this.bundleSourceDir}.`,
-            `Download Espressif clang ${this.clangEnv.clangVersion} (${this.clangEnv.downloadUrl}) into ${this.clangEnv.clangRootDir}, if needed.`,
+            toolchainStep,
             `Install the runtime bundle into ${this.clangEnv.bundleDir(this.boardName)}.`,
         ];
     }
@@ -42,6 +53,47 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
     async setup() {
         fs.makeDir(GLOBAL_SETTINGS.BLUESCRIPT_DIR);
         await runStep('Verifying the runtime bundle...', async () => this.verifyBundle());
+        if (this.toolchainType === 'wasm') {
+            await this.setupWasm();
+        } else {
+            await this.setupClang();
+        }
+        if (!this.globalConfigHandler.isRuntimeSetup()) {
+            // The runtime sources are not needed with a prebuilt bundle, but
+            // other commands expect a runtime directory. Point it at the bundle.
+            this.globalConfigHandler.setRuntimeDir(this.clangEnv.bundleDir(this.boardName));
+        }
+        this.globalConfigHandler.save();
+    }
+
+    private async setupWasm() {
+        await runStep('Installing the WebAssembly toolchain...', async () => {
+            if (this.wasmEnv.isInstalled() && !this.wasmSource) {
+                return skip('already installed.');
+            }
+            if (!await this.isTarAvailable()) {
+                throw new Error('Cannot find the tar command (with xz support). Please install it and try again.');
+            }
+            await this.wasmEnv.install(this.wasmSource);
+        });
+        await runStep('Installing the runtime bundle...', async () => {
+            this.clangEnv.installBundle(this.boardName, this.bundleSourceDir);
+        });
+        this.globalConfigHandler.setBoardConfig(this.boardName, {
+            toolchainType: 'wasm',
+            toolchainVersion: this.wasmEnv.version,
+            rootDir: this.wasmEnv.rootDir,
+            bundleDir: this.clangEnv.bundleDir(this.boardName),
+            resourceDir: this.wasmEnv.resourceDir,
+            toolchain: {
+                clang: this.wasmEnv.clangFile,
+                ar: this.wasmEnv.arFile,
+                ld: this.wasmEnv.ldFile,
+            },
+        });
+    }
+
+    private async setupClang() {
         await runStep('Downloading Espressif clang... It may take a while.', async () => {
             if (this.clangEnv.isClangInstalled()) {
                 return skip('already installed.');
@@ -65,12 +117,6 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
                 ld: this.clangEnv.ldFile(this.boardName),
             },
         });
-        if (!this.globalConfigHandler.isRuntimeSetup()) {
-            // The runtime sources are not needed with the clang toolchain, but
-            // other commands expect a runtime directory. Point it at the bundle.
-            this.globalConfigHandler.setRuntimeDir(this.clangEnv.bundleDir(this.boardName));
-        }
-        this.globalConfigHandler.save();
     }
 
     private verifyBundle() {
@@ -97,7 +143,7 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
     }
 }
 
-export async function handleSetupLiteCommand(board: string, options: { bundle?: string }) {
+export async function handleSetupLiteCommand(board: string, options: { bundle?: string, toolchain?: string, wasmToolchain?: string }) {
     try {
         if (!isEsp32FamilyBoard(board)) {
             throw new Error(`setup-lite is only available for the ESP32 family, not for ${board}.`);
@@ -105,7 +151,11 @@ export async function handleSetupLiteCommand(board: string, options: { bundle?: 
         if (!options.bundle) {
             throw new Error(`The --bundle <dir> option is required. Create a bundle with 'bscript board build-runtime ${board}'.`);
         }
-        const handler = new SetupLiteHandler(board, path.resolve(options.bundle));
+        const toolchainType = options.toolchain ?? 'clang';
+        if (toolchainType !== 'clang' && toolchainType !== 'wasm') {
+            throw new Error(`Unknown toolchain type: ${toolchainType} (expected 'clang' or 'wasm').`);
+        }
+        const handler = new SetupLiteHandler(board, path.resolve(options.bundle), toolchainType, options.wasmToolchain);
 
         if (!handler.needSetup()) {
             logger.warn(`The setup for ${board} has already been completed.`);
@@ -125,7 +175,7 @@ export async function handleSetupLiteCommand(board: string, options: { bundle?: 
         await handler.setup();
 
         logger.br();
-        logger.success(`Success to set up ${board} (clang toolchain)`);
+        logger.success(`Success to set up ${board} (${toolchainType} toolchain)`);
         logger.info(`Next step: run ${chalk.yellow(`bscript board flash-runtime ${board}`)} (requires esptool: pip install esptool)`);
     } catch (error) {
         logger.error(`Failed to set up ${board}`);
@@ -140,5 +190,7 @@ export function registerSetupLiteCommand(program: Command) {
         .description('set up a board with Espressif clang and a prebuilt runtime bundle (no ESP-IDF needed)')
         .argument('<board-name>', 'name of the board to setup (esp32 or esp32s3)')
         .requiredOption('--bundle <dir>', 'runtime bundle directory created by "bscript board build-runtime"')
+        .option('--toolchain <type>', "'clang' (native Espressif clang) or 'wasm' (WebAssembly build run by node)", 'clang')
+        .option('--wasm-toolchain <path-or-url>', 'WebAssembly toolchain archive (.tar.xz), directory or URL; defaults to the release download')
         .action(handleSetupLiteCommand);
 }

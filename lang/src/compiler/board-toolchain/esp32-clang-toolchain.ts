@@ -7,6 +7,7 @@ import { executeCommand, getErrorMessage } from "../utils";
 import { ElfReader } from "./tools/elf-reader";
 import generateLinkerScript from "./tools/linker-script";
 import { Esp32Target } from "./esp32-toolchain";
+import { toWasmPath, wasmToolRunnerScript } from "./tools/wasm-tool";
 
 
 // Layout of a runtime bundle. A bundle holds everything that is needed to
@@ -44,8 +45,14 @@ export type Esp32ClangToolchainConfig = {
     toolchain: {
         clang: string,   // Espressif clang
         ar: string,      // llvm-ar
-        ld: string,      // GNU ld for xtensa (bundled with esp-clang)
+        ld: string,      // GNU ld for xtensa (bundled with esp-clang) or ld.lld
     },
+    // 'native': the toolchain entries are executables.
+    // 'wasm':   they are Emscripten modules (*.js) run through node.
+    runner?: 'native' | 'wasm',
+    // Directory holding lib/clang/<version>/include of the wasm toolchain.
+    // Passed to clang as -resource-dir.
+    resourceDir?: string,
 };
 
 // Clang-based toolchain for the ESP32 family. Unlike Esp32Toolchain it needs
@@ -60,10 +67,13 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     private compiledPackages = new Set<string>();
     private definedSymbols: Map<string, { name: string; address: number }>;
 
+    // The bundle's include directory is passed with -I, so the header is
+    // referenced by name. (An absolute path would not be visible inside the
+    // WebAssembly toolchain's filesystem.)
     get cProlog() {
         return `
 #include <stdint.h>
-#include "${this.cRuntimeH}"
+#include "c-runtime.h"
 `;
     }
     get bundleDir() { return this.config.bundleDir; }
@@ -73,6 +83,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     get builtinModulePath() { return path.join(this.bundleDir, 'std-module.bs'); }
     get ldFiles() { return this.manifest.ldFiles.map(f => path.join(this.bundleDir, 'rom-ld', f)); }
     get target() { return this.config.target; }
+    get isWasm() { return this.config.runner === 'wasm'; }
 
     constructor(config: Esp32ClangToolchainConfig, memoryLayout: MemoryLayout) {
         this.config = config;
@@ -108,9 +119,19 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
         return this.extractBinary(elfPath, entryPoints);
     }
 
+    // Run one of the toolchain commands, either natively or as a WebAssembly module.
+    private async runTool(tool: string, args: string[], cwd: string): Promise<void> {
+        if (this.isWasm) {
+            await executeCommand(process.execPath, [wasmToolRunnerScript(), tool, ...args], cwd);
+        } else {
+            await executeCommand(tool, args, cwd);
+        }
+    }
+
     // Flags passed to clang. They mirror the GCC flags used by Esp32Toolchain.
     get compileFlags(): string[] {
         return [
+            ...(this.config.resourceDir ? ['-resource-dir', this.config.resourceDir] : []),
             '--target=xtensa-esp-elf', `-mcpu=${this.target}`,
             '-ffreestanding', '-nostdlib',
             '-O2', '-w', '-fno-common',
@@ -139,14 +160,14 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
             const objectFiles: string[] = [];
             for (const source of this.sourceFiles(pkg)) {
                 const object = pkg.objectFileOf(source);
-                await executeCommand(
+                await this.runTool(
                     this.config.toolchain.clang,
                     [...this.compileFlags, ...includeFlags, '-c', source, '-o', object],
                     pkg.resolvedDistDir,
                 );
                 objectFiles.push(object);
             }
-            await executeCommand(this.config.toolchain.ar, ['rcs', archivePath, ...objectFiles], pkg.resolvedBuildDir);
+            await this.runTool(this.config.toolchain.ar, ['rcs', archivePath, ...objectFiles], pkg.resolvedBuildDir);
         } catch (error) {
             throw new Error(`Failed to compile package ${pkg.name}: ${getErrorMessage(error)}`, {cause: error});
         }
@@ -171,9 +192,12 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
                 entryPoints.at(-1)!,
                 entryPoints.slice(0, -1),
                 this.ldFiles,
+                this.isWasm ? toWasmPath : undefined,
             );
             const linkerScriptPath = project.mainPackage.writeLinkerScript(linkerscript);
-            await executeCommand(this.config.toolchain.ld, ['-o', elfPath, '-T', linkerScriptPath, '--gc-sections'], cwd);
+            // ld.lld needs the flavor when it is not invoked through an ld.lld symlink.
+            const ldArgs = this.isWasm ? ['-flavor', 'gnu'] : [];
+            await this.runTool(this.config.toolchain.ld, [...ldArgs, '-o', elfPath, '-T', linkerScriptPath, '--gc-sections'], cwd);
             return elfPath;
         } catch (error) {
             throw new Error(`Failed to link: ${getErrorMessage(error)}`, {cause: error});

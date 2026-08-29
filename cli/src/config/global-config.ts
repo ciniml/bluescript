@@ -32,8 +32,23 @@ const esp32ClangBoardSchema = z.object({
     }),
 });
 
-// The clang schema is tried first because the esp-idf schema defaults toolchainType.
-const esp32BoardSchema = z.union([esp32ClangBoardSchema, esp32IdfBoardSchema]);
+// WebAssembly toolchain (bscript board setup-lite --toolchain wasm): clang/lld/llvm-ar
+// built as Emscripten modules and run by node. Nothing native is needed.
+const esp32WasmBoardSchema = z.object({
+    toolchainType: z.literal('wasm'),
+    toolchainVersion: z.string(),
+    rootDir: z.string(),      // wasm toolchain directory
+    bundleDir: z.string(),    // runtime bundle directory
+    resourceDir: z.string(),  // clang resource dir (lib/clang/<ver>)
+    toolchain: z.object({
+        clang: z.string(),    // *.js modules
+        ar: z.string(),
+        ld: z.string(),
+    }),
+});
+
+// The esp-idf schema is tried last because it defaults toolchainType.
+const esp32BoardSchema = z.union([esp32ClangBoardSchema, esp32WasmBoardSchema, esp32IdfBoardSchema]);
 
 const hostBoardSchema = z.object({
     rootDir: z.string(),
@@ -59,9 +74,14 @@ const globalConfigSchema = z.object({
 
 export type Esp32BoardConfig = z.infer<typeof esp32IdfBoardSchema>;
 export type Esp32ClangBoardConfig = z.infer<typeof esp32ClangBoardSchema>;
+export type Esp32WasmBoardConfig = z.infer<typeof esp32WasmBoardSchema>;
 export type Esp32AnyBoardConfig = z.infer<typeof esp32BoardSchema>;
 export const isEsp32IdfBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32BoardConfig => c.toolchainType === 'esp-idf';
 export const isEsp32ClangBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32ClangBoardConfig => c.toolchainType === 'clang';
+export const isEsp32WasmBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32WasmBoardConfig => c.toolchainType === 'wasm';
+// Boards set up with a prebuilt runtime bundle (no ESP-IDF).
+export const isEsp32BundleBoardConfig = (c: Esp32AnyBoardConfig): c is Esp32ClangBoardConfig | Esp32WasmBoardConfig =>
+    c.toolchainType === 'clang' || c.toolchainType === 'wasm';
 export type HostBoardConfig = z.infer<typeof hostBoardSchema>;
 export type BoardConfig = z.infer<typeof boardConfigSchema>;
 export type GlobalConfig = z.infer<typeof globalConfigSchema>;

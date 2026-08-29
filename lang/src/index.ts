@@ -4,5 +4,6 @@ export { Project } from './compiler/project';
 export { Package, PackageForEsp32, PackageForHostUnix, PackageForHostWindows } from './compiler/package';
 export { Esp32Toolchain, Esp32ToolchainConfig, Esp32Target, ESP32_TARGET_BUILD_DIRS } from './compiler/board-toolchain/esp32-toolchain';
 export { Esp32ClangToolchain, Esp32ClangToolchainConfig, RuntimeBundleManifest, RUNTIME_BUNDLE_MANIFEST, readRuntimeBundleManifest } from './compiler/board-toolchain/esp32-clang-toolchain';
+export { rewriteWasmArg, toWasmPath, wasmToolRunnerScript, WASM_HOST_ROOT } from './compiler/board-toolchain/tools/wasm-tool';
 export { HostToolchain, HostToolchainConfig, HostUnixToolchain, HostWindowsToolchain } from './compiler/board-toolchain/host-toolchain';
 export { MemoryLayout, MemoryImage, CompileOutput, SharedLibrary } from './compiler/board-toolchain/board-toolchain';
