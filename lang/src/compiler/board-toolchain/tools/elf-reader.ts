@@ -32,10 +32,16 @@ export class ElfReader {
   public readonly filePath: string;
   private readonly elf;
 
-  constructor(path: string) {
+  constructor(path: string, buffer?: Buffer) {
     this.filePath = path;
-    this.elf = new ELF32(fs.readFileSync(path));
+    this.elf = new ELF32(buffer ?? fs.readFileSync(path));
   }
+
+  // Create a reader from an in-memory ELF image (e.g. in a browser).
+  static fromBuffer(buffer: Buffer, name = '<memory>'): ElfReader {
+    return new ElfReader(name, buffer);
+  }
+
 
   public readDefinedSymbols():Symbol[] {
     return this.readSymbols([STType.STT_FUNC, STType.STT_OBJECT])

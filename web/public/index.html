@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BlueScript in the browser</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 960px; }
+  textarea { width: 100%; height: 8rem; font-family: ui-monospace, monospace; font-size: 14px; }
+  #output { background: #111; color: #ddd; padding: .75rem; height: 20rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; }
+  #output .src { color: #8fc7ff; } #output .info { color: #888; } #output .err { color: #ff7b7b; }
+  button { margin-right: .5rem; }
+  #status { margin: .5rem 0; color: #555; }
+</style>
+</head>
+<body>
+<h1>BlueScript in the browser</h1>
+<p>Compiles BlueScript with a WebAssembly build of clang/lld, sends the machine code over Web Bluetooth, and flashes the runtime with esptool-js over Web Serial. Chrome or Edge required.</p>
+<div id="status">Loading...</div>
+<p>
+  <button id="flash" disabled>Flash runtime (USB)</button>
+  <button id="connect" disabled>Connect (Bluetooth)</button>
+</p>
+<textarea id="code">function fib(n: integer): integer { if (n < 2) return n; else return fib(n - 1) + fib(n - 2); }
+console.log(fib(20));</textarea>
+<p><button id="run" disabled>Run</button></p>
+<pre id="output"></pre>
+<script src="main.js"></script>
+</body>
+</html>
