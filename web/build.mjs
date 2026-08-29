@@ -56,6 +56,11 @@ const ctxWorker = await esbuild.context({ ...common, entryPoints: [path.join(roo
 await ctxMain.rebuild();
 await ctxWorker.rebuild();
 if (serve) {
+  // The runtime bundle is not part of the esbuild graph: re-copy it when it changes
+  // (e.g. after `bscript board build-runtime`).
+  fs.watch(bundleDir, { recursive: true }, () => {
+    try { copyAssets(); console.log('[assets] runtime bundle updated'); } catch (e) { console.error(e); }
+  });
   await ctxMain.watch();
   await ctxWorker.watch();
   // HOST/PORT select the bind address; KEYFILE/CERTFILE enable HTTPS (Web Bluetooth /
