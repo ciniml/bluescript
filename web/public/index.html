@@ -22,7 +22,10 @@
 </p>
 <textarea id="code">function fib(n: integer): integer { if (n < 2) return n; else return fib(n - 1) + fib(n - 2); }
 console.log(fib(20));</textarea>
-<p><button id="run" disabled>Run</button></p>
+<p>
+  <button id="run" disabled>Run</button>
+  <button id="reset" disabled title="Clears the program on the board and the session (variables, functions) so the same code can be run again">Reset session</button>
+</p>
 <pre id="output"></pre>
 <script src="main.js"></script>
 </body>

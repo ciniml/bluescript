@@ -52,7 +52,7 @@ $('connect').onclick = async () => {
     device = new WebBluetoothDevice({
       log: (m) => print(m.replace(/\n$/, '')),
       error: (m) => print(m, 'err'),
-      disconnected: () => { setStatus('Disconnected.'); ($('run') as HTMLButtonElement).disabled = true; },
+      disconnected: () => { setStatus('Disconnected.'); ($('run') as HTMLButtonElement).disabled = true; ($('reset') as HTMLButtonElement).disabled = true; },
     });
     await device.connect();
     setStatus(`Connected to ${device.name}. Resetting...`);
@@ -60,7 +60,21 @@ $('connect').onclick = async () => {
     compiler!.reset(layout);
     setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}`);
     ($('run') as HTMLButtonElement).disabled = false;
+    ($('reset') as HTMLButtonElement).disabled = false;
   } catch (e) { print(String(e), 'err'); }
+};
+
+// Start a new session: the board drops the loaded program and the compiler
+// forgets the variables and functions defined so far.
+$('reset').onclick = async () => {
+  const btn = $('reset') as HTMLButtonElement;
+  btn.disabled = true;
+  try {
+    const layout = await device!.init();
+    compiler!.reset(layout);
+    print('--- session reset ---', 'info');
+  } catch (e) { print(String(e), 'err'); }
+  btn.disabled = false;
 };
 
 $('run').onclick = async () => {
@@ -76,7 +90,11 @@ $('run').onclick = async () => {
     const execMs = await device!.execute(image);
     print(`executed in ${execMs.toFixed(2)} ms`, 'info');
     setStatus(`Connected to ${device!.name}.`);
-  } catch (e) { print(String(e), 'err'); }
+  } catch (e) {
+    const msg = String(e);
+    print(msg, 'err');
+    if (/already|redeclar|duplicate/i.test(msg)) print('Hint: press "Reset session" to run the same code again.', 'info');
+  }
   btn.disabled = false;
 };
 

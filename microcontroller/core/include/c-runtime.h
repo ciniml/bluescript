@@ -135,6 +135,18 @@ struct gc_root_set {
 extern int32_t CR_SECTION try_and_catch(void (*main_function)());
 extern value_t CR_SECTION runtime_error(const char* msg);
 
+// Cooperative interruption of a running program. The host sets
+// bs_interrupt_requested (e.g. when a RESET command arrives while a program is
+// running); the compiler calls bs_interrupt_check() in every loop iteration,
+// which aborts the program through the try_and_catch() mechanism.
+extern volatile int32_t bs_interrupt_requested;
+extern void CR_SECTION bs_interrupt(void);
+static inline int32_t bs_interrupt_check(void) {
+    if (__builtin_expect(bs_interrupt_requested, 0))
+        bs_interrupt();
+    return 1;
+}
+
 extern int32_t CR_SECTION safe_value_to_int(value_t v);
 extern float CR_SECTION safe_value_to_float(value_t v);
 extern value_t CR_SECTION safe_value_to_null(value_t v);

@@ -170,6 +170,13 @@ value_t runtime_error(const char* msg) {
     return throw_runtime_error("", msg);
 }
 
+volatile int32_t bs_interrupt_requested = 0;
+
+void bs_interrupt(void) {
+    bs_interrupt_requested = 0;
+    throw_runtime_error("", "interrupted");
+}
+
 // arithmetic operators for any-type values
 
 #define INCREMENT_OP    'i'

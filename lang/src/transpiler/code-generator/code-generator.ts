@@ -263,7 +263,7 @@ export class CodeGenerator extends visitor.NodeVisitor<VariableEnv> {
   whileStatement(node: AST.WhileStatement, env: VariableEnv): void {
     this.result.nl()
     this.result.write('while (')
-    this.testExpression(node.test, env)
+    this.loopTestExpression(node.test, env)
     this.result.write(') ')
     if (node.body.type === 'BlockStatement')
       this.visit(node.body, env)
@@ -290,10 +290,20 @@ export class CodeGenerator extends visitor.NodeVisitor<VariableEnv> {
     }
 
     this.result.write(' while (')
-    this.testExpression(node.test, env)
+    this.loopTestExpression(node.test, env)
     this.result.write(');')
 
     this.endWithReturn = false
+  }
+
+  // A loop condition; also gives the runtime a chance to interrupt the program.
+  loopTestExpression(test: AST.Node | null, env: VariableEnv) {
+    this.result.write('bs_interrupt_check()')
+    if (test) {
+      this.result.write(' && (')
+      this.testExpression(test, env)
+      this.result.write(')')
+    }
   }
 
   testExpression(test: AST.Node, env: VariableEnv) {
@@ -349,8 +359,7 @@ export class CodeGenerator extends visitor.NodeVisitor<VariableEnv> {
     if (!node.init || AST.isExpression(node.init))
       this.result.write('; ')
 
-    if (node.test)
-      this.testExpression(node.test, env2)
+    this.loopTestExpression(node.test ?? null, env2)
 
     this.result.write('; ')
     if (node.update)

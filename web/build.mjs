@@ -58,8 +58,13 @@ await ctxWorker.rebuild();
 if (serve) {
   await ctxMain.watch();
   await ctxWorker.watch();
-  const { host, port } = await ctxMain.serve({ servedir: dist, port: 8000 });
-  console.log(`Serving http://localhost:${port}/  (Web Bluetooth / Web Serial need Chrome or Edge)`);
+  // HOST/PORT select the bind address; KEYFILE/CERTFILE enable HTTPS (Web Bluetooth /
+  // Web Serial require a secure context: localhost or HTTPS).
+  const host = process.env.HOST ?? '127.0.0.1';
+  const port = Number(process.env.PORT ?? 8000);
+  const tls = process.env.KEYFILE && process.env.CERTFILE ? { keyfile: process.env.KEYFILE, certfile: process.env.CERTFILE } : {};
+  await ctxMain.serve({ servedir: dist, host, port, ...tls });
+  console.log(`Serving ${tls.keyfile ? 'https' : 'http'}://${host}:${port}/  (Web Bluetooth / Web Serial need Chrome or Edge)`);
 } else {
   await ctxMain.dispose();
   await ctxWorker.dispose();

@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "memory.h"
 #include "../include/protocol.h"
+#include "../include/c-runtime.h"
 #include "../include/main-thread.h"
 
 
@@ -140,6 +141,8 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
         case PROTOCOL_RESET:
         // | cmd (1byte) | 
         {
+            // Abort a running program so that the main thread can process the reset.
+            bs_interrupt_requested = 1;
             bs_main_thread_reset();
             idx += 1;
             break;

@@ -55,6 +55,7 @@ static void main_thread_init(bs_memory_layout_t* memory_layout) {
 
 static void main_thread_reset() {
     BS_LOG_INFO("Reset main thread")
+    bs_interrupt_requested = 0;
     bs_memory_reset();
     gc_initialize();
     bs_stdmodule_main();
@@ -63,6 +64,7 @@ static void main_thread_reset() {
 
 static float task_call_main(int32_t id, void* address) {
     BS_LOG_INFO("Call main, address: %p, id: %d", (int)address, (int)id)
+    bs_interrupt_requested = 0;
     uint64_t start_us = bs_timer_get_time_us();
     try_and_catch(address);
     uint64_t end_us = bs_timer_get_time_us();
