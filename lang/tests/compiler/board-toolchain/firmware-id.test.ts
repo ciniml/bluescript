@@ -29,9 +29,12 @@ describe('firmware identity', () => {
     const expected = parseEspAppDesc(makeImage(SHA_A));
     const ok = checkFirmwareIdentity({ ...layoutBase, firmware: { elfSha256: SHA_A, protocolVersion: 2, sentinels: [0x42000000, 0x42000100, 0x42000200] } }, expected, symbols);
     expect(ok.ok).toBe(true);
+    // A board without identity is only accepted when nothing is expected.
+    const unknown = checkFirmwareIdentity(layoutBase, undefined, symbols);
+    expect(unknown.ok).toBe(true);
     const old = checkFirmwareIdentity(layoutBase, expected, symbols);
-    expect(old.ok).toBe(true);
-    expect(old.message).toMatch(/old runtime/);
+    expect(old.ok).toBe(false);
+    expect(old.message).toMatch(/older runtime/);
   });
 
   test('reports a different firmware and wrong sentinel addresses', () => {

@@ -63,7 +63,20 @@ export function checkFirmwareIdentity(
 ): FirmwareCheckResult {
     const reported = layout.firmware;
     if (!reported) {
-        return { ok: true, message: 'The board did not report its firmware identity (old runtime); skipping the consistency check.' };
+        // Every firmware the compiler can be set up with (a bundle with a
+        // descriptor, or a build next to its .bin) reports its identity, so a
+        // board that does not is running something else.
+        if (expected) {
+            return {
+                ok: false,
+                message:
+                    `The runtime on the board is not the one the compiler was set up with:\n` +
+                    `  - the board runs an older runtime that does not report its identity, ` +
+                    `while the compiler expects ${expected.version} (built ${expected.buildTime}, sha ${expected.elfSha256.slice(0, 12)}...)\n` +
+                    `Flash the matching runtime (bscript board flash-runtime <board>).`,
+            };
+        }
+        return { ok: true, message: 'The board did not report its firmware identity; the consistency check is skipped.' };
     }
     const problems: string[] = [];
     const zeroSha = /^0+$/.test(reported.elfSha256);
