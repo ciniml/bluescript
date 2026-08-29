@@ -1,13 +1,13 @@
 import * as path from "path";
-import * as fs from "fs";
+import { FileSystem, nodeFileSystem } from "../file-system";
+import { ToolRunner, nodeToolRunner } from "../tool-runner";
 import { PackageForEsp32 } from "../package";
 import { Project } from "../project";
 import { BoardToolchain, MemoryImage, MemoryLayout, ShadowMemory } from "./board-toolchain";
-import { executeCommand, getErrorMessage } from "../utils";
+import { getErrorMessage } from "../utils";
 import { ElfReader } from "./tools/elf-reader";
 import generateLinkerScript from "./tools/linker-script";
 import { Esp32Target } from "./esp32-toolchain";
-import { toWasmPath, wasmToolRunnerScript } from "./tools/wasm-tool";
 import { EspAppDesc, assertFirmwareMatches } from "./tools/firmware-id";
 
 
@@ -45,10 +45,10 @@ export type RuntimeBundleManifest = {
     firmware?: EspAppDesc,
 };
 
-export function readRuntimeBundleManifest(bundleDir: string): RuntimeBundleManifest {
+export function readRuntimeBundleManifest(bundleDir: string, fs: FileSystem = nodeFileSystem): RuntimeBundleManifest {
     const manifestPath = path.join(bundleDir, RUNTIME_BUNDLE_MANIFEST);
     try {
-        return JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as RuntimeBundleManifest;
+        return JSON.parse(fs.readTextFile(manifestPath)) as RuntimeBundleManifest;
     } catch (error) {
         throw new Error(`Failed to read the runtime bundle manifest: ${manifestPath}`, { cause: error });
     }
@@ -80,6 +80,8 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
 
     private config: Esp32ClangToolchainConfig;
     private manifest: RuntimeBundleManifest;
+    private fs: FileSystem;
+    private runner: ToolRunner;
     private compiledPackages = new Set<string>();
     private definedSymbols: Map<string, { name: string; address: number }>;
 
@@ -101,15 +103,18 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     get target() { return this.config.target; }
     get isWasm() { return this.config.runner === 'wasm'; }
 
-    constructor(config: Esp32ClangToolchainConfig, memoryLayout: MemoryLayout) {
+    constructor(config: Esp32ClangToolchainConfig, memoryLayout: MemoryLayout,
+                deps: { fs?: FileSystem, runner?: ToolRunner } = {}) {
         this.config = config;
+        this.fs = deps.fs ?? nodeFileSystem;
+        this.runner = deps.runner ?? nodeToolRunner;
         this.memory = new ShadowMemory(memoryLayout);
-        this.manifest = readRuntimeBundleManifest(config.bundleDir);
+        this.manifest = readRuntimeBundleManifest(config.bundleDir, this.fs);
         if (this.manifest.target !== config.target) {
             throw new Error(
                 `The runtime bundle ${config.bundleDir} is for ${this.manifest.target}, not for ${config.target}.`);
         }
-        const elfReader = new ElfReader(this.runtimeElf);
+        const elfReader = ElfReader.fromBuffer(this.fs.readFile(this.runtimeElf), this.runtimeElf);
         this.definedSymbols = new Map(elfReader.readAllSymbols().map(s => [s.name, s]));
         assertFirmwareMatches(memoryLayout, this.manifest.firmware, this.definedSymbols);
     }
@@ -138,11 +143,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
 
     // Run one of the toolchain commands, either natively or as a WebAssembly module.
     private async runTool(tool: string, args: string[], cwd: string): Promise<void> {
-        if (this.isWasm) {
-            await executeCommand(process.execPath, [wasmToolRunnerScript(), tool, ...args], cwd);
-        } else {
-            await executeCommand(tool, args, cwd);
-        }
+        await this.runner.run(tool, args, cwd, { wasm: this.isWasm });
     }
 
     // Flags passed to clang. They mirror the GCC flags used by Esp32Toolchain.
@@ -196,9 +197,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     private async compilePackage(pkg: PackageForEsp32): Promise<void> {
         try {
             const archivePath = pkg.archiveFile;
-            if (fs.existsSync(archivePath)) {
-                fs.rmSync(archivePath, { force: true });
-            }
+            this.fs.rm(archivePath);
             pkg.copyNativeFilesToDist();
             pkg.ensureBuildDirs();
 
@@ -244,11 +243,12 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
                 entryPoints.at(-1)!,
                 entryPoints.slice(0, -1),
                 this.ldFiles,
-                this.isWasm ? toWasmPath : undefined,
+                (p: string) => this.runner.pathInTool?.(p, { wasm: this.isWasm }) ?? p,
             );
             const linkerScriptPath = project.mainPackage.writeLinkerScript(linkerscript);
-            // ld.lld needs the flavor when it is not invoked through an ld.lld symlink.
-            const ldArgs = this.isWasm ? ['-flavor', 'gnu'] : [];
+            // ld.lld needs the flavor when it is not invoked through an ld.lld symlink,
+            // and must not try to spawn threads in a WebAssembly build.
+            const ldArgs = this.isWasm ? ['-flavor', 'gnu', '--threads=1'] : [];
             await this.runTool(this.config.toolchain.ld, [...ldArgs, '-o', elfPath, '-T', linkerScriptPath, '--gc-sections'], cwd);
             return elfPath;
         } catch (error) {
@@ -257,7 +257,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     }
 
     private extractBinary(elfPath: string, entryPoints: string[]): MemoryImage {
-        const elf = new ElfReader(elfPath);
+        const elf = ElfReader.fromBuffer(this.fs.readFile(elfPath), elfPath);
         const sections = {
             iram: elf.readSectionByName(this.memory.iram.name),
             dram: elf.readSectionByName(this.memory.dram.name),

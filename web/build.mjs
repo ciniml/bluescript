@@ -46,7 +46,7 @@ const common = {
   sourcemap: true,
   logLevel: 'info',
   // Node-only modules referenced by the shared TypeScript sources.
-  alias: { 'node:buffer': 'buffer', 'fs': path.join(root, 'src/shims/fs.ts'), 'path': path.join(root, 'src/shims/path.ts') },
+  alias: { 'node:buffer': 'buffer', 'fs': path.join(root, 'src/shims/fs.ts'), 'path': path.join(root, 'src/shims/path.ts'), 'child_process': path.join(root, 'src/shims/child_process.ts') },
   inject: [path.join(root, 'src/shims/buffer.ts'), path.join(root, 'src/shims/process.ts')],
 };
 

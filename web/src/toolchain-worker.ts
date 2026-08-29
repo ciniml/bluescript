@@ -12,6 +12,9 @@ export type ToolRequest = {
   files: { [path: string]: Uint8Array };
   // Files fetched on demand (synchronous XHR inside the worker) when the tool opens them.
   lazyFiles?: { [path: string]: string };   // path in MEMFS -> URL
+  cwd?: string;
+  dirs?: string[];   // directories to create (possibly empty)
+  // Files (or directories, collected recursively) to return after the run.
   outputs: string[];
 };
 
@@ -27,6 +30,9 @@ export type ToolResponse = {
 declare function importScripts(...urls: string[]): void;
 
 const factories = new Map<ToolName, (opts: object) => Promise<any>>();
+// Files registered once by the main thread (runtime bundle, headers) and
+// written into every module instance, so they are not transferred per run.
+const persistentFiles = new Map<string, Uint8Array>();
 const modules = new Map<ToolName, Promise<WebAssembly.Module>>();
 const base = new URL('./toolchain/bin/', self.location.href).href;
 
@@ -72,6 +78,10 @@ async function run(req: ToolRequest): Promise<ToolResponse> {
       return {};
     },
   });
+  for (const [p, data] of persistentFiles) {
+    mkdirTree(m.FS, p.slice(0, p.lastIndexOf('/')));
+    m.FS.writeFile(p, data);
+  }
   for (const [p, data] of Object.entries(req.files)) {
     mkdirTree(m.FS, p.slice(0, p.lastIndexOf('/')));
     m.FS.writeFile(p, data);
@@ -82,6 +92,8 @@ async function run(req: ToolRequest): Promise<ToolResponse> {
     m.FS.createLazyFile(dir, p.slice(p.lastIndexOf('/') + 1), url, true, false);
   }
   for (const p of req.outputs) mkdirTree(m.FS, p.slice(0, p.lastIndexOf('/')));
+  for (const d of req.dirs ?? []) mkdirTree(m.FS, d);
+  if (req.cwd) { mkdirTree(m.FS, req.cwd); m.FS.chdir(req.cwd); }
   let code: number;
   try {
     code = m.callMain(req.args);
@@ -90,14 +102,26 @@ async function run(req: ToolRequest): Promise<ToolResponse> {
     if (typeof e?.status !== 'number') stderr += String(e) + '\n';
   }
   const outputs: { [path: string]: Uint8Array } = {};
-  for (const p of req.outputs) {
-    try { outputs[p] = m.FS.readFile(p); } catch { /* not produced */ }
-  }
+  const collect = (p: string) => {
+    let st: any;
+    try { st = m.FS.stat(p); } catch { return; }
+    if (m.FS.isDir(st.mode)) {
+      for (const name of m.FS.readdir(p)) if (name !== '.' && name !== '..') collect(`${p}/${name}`);
+    } else {
+      outputs[p] = m.FS.readFile(p);
+    }
+  };
+  for (const p of req.outputs) collect(p);
   return { id: req.id, code, stdout, stderr, outputs };
 }
 
-self.onmessage = async (ev: MessageEvent<ToolRequest | { id: number, warmup: ToolName[] }>) => {
+self.onmessage = async (ev: MessageEvent<ToolRequest | { id: number, warmup: ToolName[] } | { id: number, register: { [p: string]: Uint8Array } }>) => {
   const msg = ev.data;
+  if ('register' in msg) {
+    for (const [p, data] of Object.entries(msg.register)) persistentFiles.set(p, data);
+    (self as any).postMessage({ id: msg.id, code: 0, stdout: '', stderr: '', outputs: {} });
+    return;
+  }
   if ('warmup' in msg) {
     await Promise.all(msg.warmup.map(t => moduleOf(t)));
     msg.warmup.forEach(t => factoryOf(t));

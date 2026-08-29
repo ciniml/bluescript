@@ -2,14 +2,15 @@ import { BoardToolchain, CompileOutput } from "./board-toolchain/board-toolchain
 import { Package } from "./package";
 import { Project } from "./project";
 import { TranspilerSession } from "./transpiler-session";
+import { FileSystem, nodeFileSystem } from "./file-system";
 
 export class CompilerSession<P extends Package, Output extends CompileOutput> {
     private transpiler: TranspilerSession;
     private toolchain: BoardToolchain<P, Output>;
     private project: Project<P> | null = null;
 
-    constructor(toolchain: BoardToolchain<P, Output>) {
-        this.transpiler = new TranspilerSession(toolchain.builtinModulePath, toolchain.cProlog);
+    constructor(toolchain: BoardToolchain<P, Output>, fs: FileSystem = nodeFileSystem) {
+        this.transpiler = new TranspilerSession(toolchain.builtinModulePath, toolchain.cProlog, fs);
         this.toolchain = toolchain;
     }
 

@@ -32,6 +32,7 @@ describe('firmware identity', () => {
     // A board without identity is only accepted when nothing is expected.
     const unknown = checkFirmwareIdentity(layoutBase, undefined, symbols);
     expect(unknown.ok).toBe(true);
+    expect(checkFirmwareIdentity({ ...layoutBase, dummy: true }, expected, symbols).ok).toBe(true);
     const old = checkFirmwareIdentity(layoutBase, expected, symbols);
     expect(old.ok).toBe(false);
     expect(old.message).toMatch(/older runtime/);

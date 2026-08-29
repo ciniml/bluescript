@@ -8,6 +8,9 @@ export type MemoryLayout = {
     dflash:{address:number, size:number},
     // Identity of the running firmware, reported by newer runtimes (see tools/firmware-id.ts).
     firmware?: { elfSha256: string, protocolVersion: number, sentinels: number[] },
+    // True for a layout that was not reported by a board (e.g. `project check`);
+    // no firmware consistency check is possible then.
+    dummy?: boolean,
 }
 
 type MemoryRegion = {name: string, address: number, size: number, used: number}

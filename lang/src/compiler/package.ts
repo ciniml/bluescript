@@ -1,5 +1,5 @@
-import * as fs from "fs";
 import * as path from "path";
+import { FileSystem, nodeFileSystem } from "./file-system";
 
 
 type RelativePath = string;
@@ -18,6 +18,7 @@ export class Package {
     readonly buildDir: RelativePath;
     readonly packageDir: RelativePath;
     readonly dependencies: string[];
+    readonly fs: FileSystem;
 
     get resolvedEntry(): AbsolutePath { return path.join(this.rootDir, this.entry); }  
     get resolvedSourceDir(): AbsolutePath { return path.join(this.rootDir, this.sourceDir); }
@@ -69,9 +70,11 @@ export class Package {
             packageDir: RelativePath,
         },
         dependencies: string[],
+        fs: FileSystem = nodeFileSystem,
     ) {
         this.name = name;
         this.dependencies = dependencies;
+        this.fs = fs;
         this.rootDir = path.rootDir;
         this.sourceDir = path.sourceDir;
         this.entry = path.entry;
@@ -83,7 +86,7 @@ export class Package {
     check() {
         const invalidBsFilePattern = /^\d+\.bs$/;
         const invalidCFilePattern = /^bs_.*\.c$/;
-        if (!fs.existsSync(this.sourceDir)) {
+        if (!this.fs.exists(this.resolvedSourceDir)) {
             return;
         }
         this.walkFiles(this.resolvedSourceDir, (name, fullPath) => {
@@ -106,19 +109,19 @@ export class Package {
         this.walkFiles(this.resolvedSourceDir, (name, fullPath) => {
             if (name.endsWith('.c') || name.endsWith('.h')) {
                 const dest = this.replacePrefix(this.resolvedSourceDir, this.resolvedDistDir, fullPath);
-                fs.cpSync(fullPath, dest);
+                this.fs.copyFile(fullPath, dest);
             }
         }, [this.resolvedDistDir, this.packageDir]);
     }
 
     clean(): void {
-        fs.rmSync(this.resolvedDistDir, { recursive: true, force: true });
+        this.fs.rm(this.resolvedDistDir);
     }
 
     readSourceFile(p: RelativePath): string {
         const filePath = path.join(this.rootDir, p);
         try {
-            return fs.readFileSync(filePath).toString('utf-8');
+            return this.fs.readTextFile(filePath);
         }
         catch (e) {
             throw new Error(`Cannot find a module ${filePath} in ${this.name}`);
@@ -130,19 +133,19 @@ export class Package {
         const cRelativePath = path.join(parsed.dir, `bs_${parsed.name}.c`);
         const filePath = path.join(this.resolvedDistDir, cRelativePath);
         const cDir = path.dirname(filePath);
-        fs.mkdirSync(cDir, { recursive: true });
-        fs.writeFileSync(filePath, data);
+        this.fs.mkdir(cDir);
+        this.fs.writeFile(filePath, data);
     }
 
     writeMakefile(data: string) {
         const filePath = path.join(this.resolvedDistDir, 'Makefile');
-        fs.writeFileSync(filePath, data);
+        this.fs.writeFile(filePath, data);
         return filePath;
     }
 
     writeCompileFlagsFile(data: string) {
         const filePath = path.join(this.resolvedDistDir, COMPILE_FLAGS_FILE);
-        fs.writeFileSync(filePath, data);
+        this.fs.writeFile(filePath, data);
         return filePath;
     }
 
@@ -155,7 +158,7 @@ export class Package {
             dirs.add(path.dirname(objectFile));
         }
         for (const dir of dirs) {
-            fs.mkdirSync(dir, { recursive: true });
+            this.fs.mkdir(dir);
         }
     }
 
@@ -165,26 +168,27 @@ export class Package {
     // previous fragments from their shared libraries instead of statically
     // redefining them. Native (user-provided) C files are left untouched.
     removeGeneratedCFiles() {
-        if (!fs.existsSync(this.resolvedDistDir)) {
+        if (!this.fs.exists(this.resolvedDistDir)) {
             return;
         }
         const generatedCFilePattern = /^bs_.*\.c$/;
         this.walkFiles(this.resolvedDistDir, (name, fullPath) => {
             if (generatedCFilePattern.test(name)) {
-                fs.rmSync(fullPath, { force: true });
+                this.fs.rm(fullPath);
             }
         }, [this.resolvedBuildDir]);
     }
     
     protected walkFiles(dir: string, handler: (name: string, fullPath: string) => void, ignorDirs?: string[]) {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!this.fs.exists(dir)) return;
+        for (const entry of this.fs.readdir(dir)) {
             const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
+            if (entry.isDirectory) {
                 if (ignorDirs?.includes(fullPath)) {
                     continue;
                 }
                 this.walkFiles(fullPath, handler, ignorDirs);
-            } else if (entry.isFile()) {
+            } else if (entry.isFile) {
                 handler(entry.name, fullPath);
             }
         }
@@ -226,8 +230,9 @@ export class PackageForEsp32 extends Package {
         },
         dependencies: string[],
         espIdfComponents: string[],
+        fs?: FileSystem,
     ) {
-        super(name, path, dependencies);
+        super(name, path, dependencies, fs);
         this.espIdfComponents = espIdfComponents;
     }
 
@@ -237,7 +242,7 @@ export class PackageForEsp32 extends Package {
 
     writeLinkerScript(data: string) {
         const filePath = path.join(this.resolvedBuildDir, "linkerscript.ld");
-        fs.writeFileSync(filePath, data);
+        this.fs.writeFile(filePath, data);
         return filePath;
     }
 }

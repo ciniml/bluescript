@@ -4,12 +4,21 @@
 <meta charset="utf-8">
 <title>BlueScript in the browser</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 960px; }
-  textarea { width: 100%; height: 8rem; font-family: ui-monospace, monospace; font-size: 14px; }
-  #output { background: #111; color: #ddd; padding: .75rem; height: 20rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; }
+  body { font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 1100px; }
+  textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 14px; box-sizing: border-box; }
+  #editor { height: 18rem; }
+  #repl { height: 5rem; }
+  #output { background: #111; color: #ddd; padding: .75rem; height: 16rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; }
   #output .src { color: #8fc7ff; } #output .info { color: #888; } #output .err { color: #ff7b7b; }
   button { margin-right: .5rem; }
   #status { margin: .5rem 0; color: #555; }
+  .row { display: flex; gap: 1rem; }
+  #files { min-width: 12rem; }
+  #files ul { list-style: none; padding: 0; margin: .3rem 0; }
+  #files li { padding: .2rem .4rem; cursor: pointer; border-radius: 4px; }
+  #files li.active { background: #e3ecf7; font-weight: 600; }
+  .editor { flex: 1; }
+  h2 { font-size: 1rem; margin: 1rem 0 .3rem; }
 </style>
 </head>
 <body>
@@ -21,13 +30,28 @@
   <button id="connect" disabled>Connect (Bluetooth)</button>
   <label title="Skip the check that the firmware on the board matches the one the compiler uses"><input type="checkbox" id="ignoreMismatch"> ignore firmware mismatch</label>
 </p>
-<textarea id="code">function fib(n: integer): integer { if (n < 2) return n; else return fib(n - 1) + fib(n - 2); }
-console.log(fib(20));</textarea>
-<p>
-  <button id="run" disabled>Run</button>
-  <button id="reset" disabled title="Clears the program on the board and the session (variables, functions) so the same code can be run again">Reset session</button>
-  <button id="reboot" disabled title="Restarts the board (works even when the program cannot be interrupted); reconnect afterwards">Reboot board</button>
-</p>
+
+<h2>Project (src/) — <code>index.bs</code> is the entry; other files are reached with <code>import</code></h2>
+<div class="row">
+  <div id="files">
+    <ul id="fileList"></ul>
+    <button id="addFile">Add file</button>
+    <button id="removeFile">Remove</button>
+  </div>
+  <div class="editor">
+    <textarea id="editor" spellcheck="false"></textarea>
+    <p>
+      <button id="runProject" disabled>Build &amp; run project</button>
+      <button id="reset" disabled title="Clears the program on the board and the session (variables, functions) so the same code can be run again">Reset session</button>
+      <button id="reboot" disabled title="Restarts the board (works even when the program cannot be interrupted); reconnect afterwards">Reboot board</button>
+    </p>
+  </div>
+</div>
+
+<h2>REPL — runs against the project loaded above (variables and functions stay defined)</h2>
+<textarea id="repl" spellcheck="false">console.log(fib(20));</textarea>
+<p><button id="run" disabled>Run fragment</button></p>
+
 <pre id="output"></pre>
 <script src="main.js"></script>
 </body>

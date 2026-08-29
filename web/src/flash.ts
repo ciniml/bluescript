@@ -1,6 +1,6 @@
 // Flash the runtime firmware with esptool-js over Web Serial.
 import { ESPLoader, Transport } from 'esptool-js';
-import type { RuntimeBundle } from './compiler';
+type FlashFile = { address: number, name: string, data: Uint8Array };
 
 function toBinaryString(data: Uint8Array): string {
   let s = '';
@@ -8,7 +8,7 @@ function toBinaryString(data: Uint8Array): string {
   return s;
 }
 
-export async function flashRuntime(bundle: RuntimeBundle, chip: string, log: (s: string) => void, progress: (p: number) => void) {
+export async function flashRuntime(flashFiles: FlashFile[], chip: string, log: (s: string) => void, progress: (p: number) => void) {
   if (!(navigator as any).serial) throw new Error('Web Serial is not available in this browser (use Chrome or Edge).');
   const port = await (navigator as any).serial.requestPort();
   const transport = new Transport(port, true);
@@ -18,7 +18,7 @@ export async function flashRuntime(bundle: RuntimeBundle, chip: string, log: (s:
     const detected = await loader.main();
     log(`Detected chip: ${detected}`);
     await loader.eraseFlash();
-    const fileArray = bundle.flash.map(f => ({ data: toBinaryString(f.data), address: f.address }));
+    const fileArray = flashFiles.map(f => ({ data: toBinaryString(f.data), address: f.address }));
     await loader.writeFlash({
       fileArray, flashSize: 'keep', flashMode: 'keep', flashFreq: 'keep', eraseAll: false, compress: true,
       reportProgress: (_i: number, written: number, total: number) => progress(Math.round((written / total) * 100)),

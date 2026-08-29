@@ -1,6 +1,6 @@
 import { GlobalVariableNameTable } from "../transpiler/code-generator/variables";
 import { transpile } from "../transpiler/code-generator/code-generator";
-import * as fs from "fs";
+import { FileSystem, nodeFileSystem } from "./file-system";
 import * as path from "path";
 import { Package } from "./package";
 import { Project } from "./project";
@@ -41,8 +41,8 @@ export class TranspilerSession {
     private modules: Map<string, GlobalVariableNameTable>;
     private cProlog: string;
 
-    constructor(builtinModulePath: string, cProlog: string) {
-        const builtinModule = fs.readFileSync(builtinModulePath, 'utf-8');
+    constructor(builtinModulePath: string, cProlog: string, fs: FileSystem = nodeFileSystem) {
+        const builtinModule = fs.readTextFile(builtinModulePath);
         this.globalNames = transpile(this.sessionId++, builtinModule).names;
         this.modules = new Map<string, GlobalVariableNameTable>();
         this.cProlog = cProlog;

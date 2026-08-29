@@ -13,12 +13,14 @@ import * as path from 'path';
 // The real layout is obtained from the device at runtime.
 export const DUMMY_MEMORY_LAYOUTS: Record<Esp32FamilyBoardName, MemoryLayout> = {
     esp32: {
+        dummy: true,
         iram: { address: 0x40096c34, size: 1000000 },
         dram: { address: 0x3ffd5b1c, size: 1000000 },
         iflash: { address: 0x40150000, size: 1000000 },
         dflash: { address: 0x3f43a000, size: 1000000 },
     },
     esp32s3: {
+        dummy: true,
         iram: { address: 0x40380000, size: 1000000 },
         dram: { address: 0x3fc90000, size: 1000000 },
         iflash: { address: 0x42100000, size: 1000000 },

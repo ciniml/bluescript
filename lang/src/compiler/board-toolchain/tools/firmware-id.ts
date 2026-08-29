@@ -61,6 +61,9 @@ export function checkFirmwareIdentity(
     expected: EspAppDesc | undefined,
     symbols: Map<string, { name: string, address: number }>,
 ): FirmwareCheckResult {
+    if (layout.dummy) {
+        return { ok: true };
+    }
     const reported = layout.firmware;
     if (!reported) {
         // Every firmware the compiler can be set up with (a bundle with a
