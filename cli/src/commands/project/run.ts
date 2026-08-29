@@ -11,6 +11,7 @@ import { cwd, simpleExec } from "../../core/command-exec";
 import { CommandHandlerWithUpdateCheck } from "../command";
 import { BoardRuntime, getBoardRuntime } from "../../platforms/runtime";
 import { CompilerAdapter, getCompilerAdapter } from "../../platforms/compiler";
+import { ENV_IGNORE_FIRMWARE_MISMATCH } from "@bscript/lang";
 import { CompileError, CompileOutput } from "@bscript/lang";
 import { WebSocketConnection } from "../../services/websocket";
 import { SerialTaskQueue } from "../../core/serial-task-queue";
@@ -290,10 +291,13 @@ class RunWithNotebookHandler extends RunHandler {
 }
 
 export async function handleRunCommand(
-    options: {withRepl: boolean, withNotebook: boolean, deviceName?: string}
+    options: {withRepl: boolean, withNotebook: boolean, deviceName?: string, ignoreFirmwareMismatch?: boolean}
 ) {
     let handler: RunHandler | undefined;
     try {
+        if (options.ignoreFirmwareMismatch) {
+            process.env[ENV_IGNORE_FIRMWARE_MISMATCH] = '1';
+        }
         const projectConfigHandler = ProjectConfigHandler.load(cwd());
         if (options.withRepl) {
             handler = new RunWithReplHandler(projectConfigHandler, options.deviceName);
@@ -326,6 +330,7 @@ export function registerRunCommand(program: Command) {
         .command('run')
         .description('run your project')
         .option('-d, --device-name <device-name>', `device name to connect to, the default is '${DEFAULT_DEVICE_NAME}'`)
+        .option('--ignore-firmware-mismatch', 'continue even if the runtime on the board differs from the one the compiler uses')
         .addOption(
             new Option('--with-repl', 'start REPL after main execution finished')
             .conflicts('withNotebook')

@@ -10,6 +10,7 @@ import { CommandHandlerWithUpdateCheck } from "./command";
 import { GLOBAL_SETTINGS } from "../config/constants";
 import { BoardRuntime, getBoardRuntime } from "../platforms/runtime";
 import { CompileContext, CompilerAdapter, getCompilerAdapter } from "../platforms/compiler";
+import { ENV_IGNORE_FIRMWARE_MISMATCH } from "@bscript/lang";
 import { BoardName } from "../config/board-utils";
 import { CompileError, CompileOutput } from "@bscript/lang";
 import { SerialTaskQueue } from "../core/serial-task-queue";
@@ -145,10 +146,13 @@ class ReplHandler extends CommandHandlerWithUpdateCheck {
 }
 
 export async function handleReplCommand(
-    options: { board: string, deviceName?: string },
+    options: { board: string, deviceName?: string, ignoreFirmwareMismatch?: boolean },
     deps?: { createReadline?: ReplReadlineFactory },
 ) {
     try {
+        if (options.ignoreFirmwareMismatch) {
+            process.env[ENV_IGNORE_FIRMWARE_MISMATCH] = '1';
+        }
         const handler = new ReplHandler(options.board, options.deviceName, deps?.createReadline);
         await handler.start();
     } catch (error) {
@@ -164,5 +168,6 @@ export function registerReplCommand(program: Command) {
         .description('start REPL')
         .requiredOption('-b, --board <board>', 'board name')
         .option('-d, --device-name <device-name>', `device name to connect to, the default is '${DEFAULT_DEVICE_NAME}'`)
+        .option('--ignore-firmware-mismatch', 'continue even if the runtime on the board differs from the one the compiler uses')
         .action(handleReplCommand);
 }

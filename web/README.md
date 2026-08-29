@@ -30,15 +30,26 @@ npm run serve          # http://localhost:8000/
 `npm run build` writes a static site to `dist/` (about 82 MB, of which 70 MB are the
 wasm modules; they are cached by the browser after the first load).
 
-Open `http://localhost:8000/?selftest` to compile two fragments without a board
-(uses a dummy memory layout; results are printed in the output pane).
+Open `http://localhost:8000/?selftest` to build the default project and a few REPL
+fragments without a board (uses a dummy memory layout; results are printed in the
+output pane).
+
+## Projects
+
+The page holds a small project (`src/index.bs` plus any files you add) in
+`localStorage`. `index.bs` is the entry; other files are reached with `import`, e.g.
+`import { fib } from "./fib";`. "Build & run project" compiles all of it with lang's
+`CompilerSession`; the REPL box then compiles fragments against that session, so the
+project's variables and functions are available there. Packages
+(`bsconfig.json` dependencies) cannot be installed in the browser yet.
 
 ## How it maps to the CLI
 
 | CLI | Browser |
 | :--- | :--- |
-| `TranspilerSession` (files on disk) | `BrowserCompiler` (strings in memory), `transpile()` from `lang` |
-| `Esp32ClangToolchain` + `run-wasm-tool.js` (NODEFS) | `toolchain-worker.ts` (MEMFS, one module instance per invocation) |
+| `NodeFileSystem` (files on disk) | `MemoryFileSystem` (lang) |
+| `NodeToolRunner` (processes; wasm via `run-wasm-tool.js`) | `BrowserToolRunner` → `toolchain-worker.ts` (MEMFS, one module instance per invocation; bundle files registered once) |
+| `CompilerSession` + `Esp32ClangToolchain` | the same classes, with the two dependencies above |
 | `ElfReader(path)` | `ElfReader.fromBuffer()` |
 | noble / node-ble transport | `WebBluetoothDevice` (`navigator.bluetooth`) |
 | `idf.py flash` / `esptool.py` | `flashRuntime()` with esptool-js |
@@ -48,5 +59,5 @@ are available to inline C: their headers are mounted lazily into the toolchain's
 filesystem (fetched on demand with synchronous XHR in the worker) and their archives are
 fetched once at start-up and linked with every fragment.
 
-Limitations of the proof of concept: single-file fragments only (no `import`), no
-packages, no profiler-driven recompilation.
+Limitations: no packages (`bsconfig.json` dependencies) and no profiler-driven
+recompilation yet.

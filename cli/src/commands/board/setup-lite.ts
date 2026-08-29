@@ -11,6 +11,7 @@ import { WasmToolchainEnv } from "../../platforms/board-env/wasm-toolchain-env";
 import { readRuntimeBundleManifest } from "@bscript/lang";
 import { GLOBAL_SETTINGS } from "../../config/constants";
 import { isPackageInstalledOnUnix, isPackageInstalledOnWindows } from "../../platforms/board-env/common-env";
+import { installSerialUdevRule, installNodeBleDbusPolicy, SERIAL_RULE_FILE, NODE_BLE_DBUS_CONFIG_FILE } from "../../platforms/board-env/linux-permissions";
 import * as os from 'os';
 
 
@@ -47,6 +48,10 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
             `Verify the runtime bundle at ${this.bundleSourceDir}.`,
             toolchainStep,
             `Install the runtime bundle into ${this.clangEnv.bundleDir(this.boardName)}.`,
+            ...(os.platform() === 'linux' ? [
+                `Write ${SERIAL_RULE_FILE} to configure access permissions for the serial device (sudo).`,
+                `Install D-Bus policy (${NODE_BLE_DBUS_CONFIG_FILE}) so BLE works with BlueZ without root (sudo).`,
+            ] : []),
         ];
     }
 
@@ -57,6 +62,16 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
             await this.setupWasm();
         } else {
             await this.setupClang();
+        }
+        if (os.platform() === 'linux') {
+            await runStep(`Writing ${SERIAL_RULE_FILE}...`, async () => {
+                if (fs.exists(SERIAL_RULE_FILE)) return skip('already installed.');
+                await installSerialUdevRule();
+            });
+            await runStep('Installing D-Bus policy for Bluetooth...', async () => {
+                if (fs.exists(NODE_BLE_DBUS_CONFIG_FILE)) return skip('already installed.');
+                await installNodeBleDbusPolicy();
+            });
         }
         if (!this.globalConfigHandler.isRuntimeSetup()) {
             // The runtime sources are not needed with a prebuilt bundle, but

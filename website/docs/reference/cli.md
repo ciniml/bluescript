@@ -247,11 +247,30 @@ bscript board setup-lite esp32s3 --bundle ./bundle-esp32s3 --toolchain wasm
 
 The `wasm` toolchain is built from Espressif's LLVM with Emscripten (see `tools/wasm-toolchain` in the repository). Compiling a REPL line takes about one second, roughly three times longer than with the native clang.
 
+On Linux, `setup-lite` also installs the udev rule for the serial device and the
+D-Bus policy for BlueZ (both need `sudo`), like `setup`.
+
+**Firmware consistency:** on every connection the board reports the SHA-256 of
+its firmware and a few function addresses; the CLI compares them with the runtime
+it compiles against and refuses to load code on mismatch. Pass
+`--ignore-firmware-mismatch` to `project run` / `repl` (or set
+`BSCRIPT_IGNORE_FIRMWARE_MISMATCH=1`) to continue anyway.
+
 **Limitations of the lite environment:**
 
 *   Projects can only use the ESP-IDF components that were packaged in the bundle with `bscript board build-runtime --components ...`. GPIO is also available without any component through the built-in `gpio` object.
 *   The BLE device name is fixed to the one the bundle was built with (`--device-name` is not supported).
 *   `bscript board build-runtime` is not available.
+
+### `bscript board reboot <board-name>`
+
+Restarts the board over Bluetooth. The runtime handles this command in its
+communication task, so it works even when the running program cannot be
+interrupted (for example a loop-free long computation). Reconnect afterwards.
+
+```bash
+bscript board reboot esp32s3 -d my-device
+```
 
 ### `bscript board list`
 
