@@ -12,7 +12,8 @@ export enum Protocol {
     Error,
     Memory,
     Exectime,
-    Profile
+    Profile,
+    Reboot,
 }
 
 
@@ -24,6 +25,7 @@ const FIRST_HEADER = Buffer.from([0x03, 0x00]);
 const LOAD_HEADER_SIZE = 9;   // cmd(1) + address(4) + size(4)
 const JUMP_HEADER_SIZE = 9;   // cmd(1) + id(4) + address(4)
 const RESET_HEADER_SIZE = 1;  // cmd(1)
+const REBOOT_HEADER_SIZE = 1; // cmd(1)
 
 const ALIGNMENT = 4;
 
@@ -136,6 +138,14 @@ export class ProtocolPacketBuilder {
         return this.appendCommand(header);
     }
 
+    // Restart the board. Processed by the board's communication task, so it
+    // works even when a program cannot be interrupted.
+    public reboot() {
+        const header = Buffer.allocUnsafe(REBOOT_HEADER_SIZE);
+        header.writeUInt8(Protocol.Reboot, 0);
+        return this.appendCommand(header);
+    }
+
     private appendCommand(commandData: Buffer) {
         if (commandData.length > this.lastUnitRemain) {
             this.flushUnit();
@@ -169,6 +179,7 @@ type ProtocolPayloads = {
     [Protocol.Memory]: { layout: MemoryLayout };
     [Protocol.Exectime]: { id: number; time: number };
     [Protocol.Profile]: { fid: number; paramtypes: string[] };
+    [Protocol.Reboot]: {};
 }
 
 export type ParseResult<T extends Protocol = Protocol> = {

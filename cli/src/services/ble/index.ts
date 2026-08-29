@@ -55,6 +55,12 @@ export class DeviceService extends Service<DeviceServiceEvents, Buffer> {
         return p;
     }
 
+    // Restart the board. The BLE connection drops as a consequence.
+    public async reboot(): Promise<void> {
+        const builder = new ProtocolPacketBuilder(MTU).reboot();
+        await this.send("reboot", builder.build());
+    }
+
     public async init(): Promise<MemoryLayout> {
         const builder = new ProtocolPacketBuilder(MTU).reset();
         const p = new Promise<MemoryLayout>((resolve) => {

@@ -81,3 +81,12 @@ describe('ProtocolPacketBuilder', () => {
         expect(builder.build()).toEqual([expectedBuffer1, expectedBuffer2]);
     })
 })
+
+describe('ProtocolPacketBuilder.reboot', () => {
+    it('emits a single REBOOT command after the first header', () => {
+        const { ProtocolPacketBuilder, Protocol } = require('../../src/services/device-protocol');
+        const packets = new ProtocolPacketBuilder(495).reboot().build();
+        expect(packets.length).toBe(1);
+        expect(packets[0][2]).toBe(Protocol.Reboot);
+    });
+});

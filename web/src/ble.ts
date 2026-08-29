@@ -64,6 +64,11 @@ export class WebBluetoothDevice {
     await this.writeChain;
   }
 
+  // Restart the board; the connection drops afterwards.
+  async reboot(): Promise<void> {
+    await this.write(new ProtocolPacketBuilder(MTU).reboot().build());
+  }
+
   async init(): Promise<MemoryLayout> {
     const packets = new ProtocolPacketBuilder(MTU).reset().build();
     const p = new Promise<MemoryLayout>(resolve => { this.memoryResolver = resolve; });

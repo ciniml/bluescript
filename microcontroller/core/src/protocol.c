@@ -20,9 +20,13 @@ typedef enum {
     PROTOCOL_MEMINFO,
     PROTOCOL_EXECTIME,
     PROTOCOL_PROFILE,
+    PROTOCOL_REBOOT,
 
     PROTOCOL_END
 } protocol_t;
+
+// Restart the board. Provided by the port; the default does nothing.
+__attribute__((weak)) void bs_board_reboot(void) {}
 
 
 static void send_buffer(uint8_t* buffer, uint32_t len) {
@@ -147,6 +151,13 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             idx += 1;
             break;
         }
+        case PROTOCOL_REBOOT:
+        // | cmd(1byte) |
+        // Handled here, in the communication task, so that it works even when
+        // the main thread is stuck in a program that cannot be interrupted.
+            BS_LOG_INFO("Reboot requested by the host");
+            bs_board_reboot();
+            return;
         case PROTOCOL_END:
         // | cmd(1byte) |
             return;

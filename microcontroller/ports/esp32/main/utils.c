@@ -2,6 +2,8 @@
 #include <stdarg.h>
 
 #include "esp_timer.h"
+#include "esp_system.h"
+#include "protocol.h"
 
 #include "./include/utils.h"
 
@@ -30,4 +32,9 @@ void bs_log_write_error(char* format, ...) {
     va_end(args);
     printf("\x1b[39m\n");
 #endif
+}
+// REBOOT command: restart the chip (clean restart, not a panic).
+void bs_board_reboot(void) {
+    fflush(stdout);
+    esp_restart();
 }

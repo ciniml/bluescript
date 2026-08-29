@@ -8,6 +8,8 @@
 
 
 void CORE_TEXT_SECTION bs_protocol_init(void);
+// Port hook: restart the board (used by the REBOOT command).
+void bs_board_reboot(void);
 
 void CORE_TEXT_SECTION bs_protocol_write_log(char* message);
 
