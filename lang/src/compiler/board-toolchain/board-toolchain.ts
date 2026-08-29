@@ -6,6 +6,8 @@ export type MemoryLayout = {
     dram:{address:number, size:number},
     iflash:{address:number, size:number},
     dflash:{address:number, size:number},
+    // Identity of the running firmware, reported by newer runtimes (see tools/firmware-id.ts).
+    firmware?: { elfSha256: string, protocolVersion: number, sentinels: number[] },
 }
 
 type MemoryRegion = {name: string, address: number, size: number, used: number}

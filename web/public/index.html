@@ -19,6 +19,7 @@
 <p>
   <button id="flash" disabled>Flash runtime (USB)</button>
   <button id="connect" disabled>Connect (Bluetooth)</button>
+  <label title="Skip the check that the firmware on the board matches the one the compiler uses"><input type="checkbox" id="ignoreMismatch"> ignore firmware mismatch</label>
 </p>
 <textarea id="code">function fib(n: integer): integer { if (n < 2) return n; else return fib(n - 1) + fib(n - 2); }
 console.log(fib(20));</textarea>

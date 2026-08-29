@@ -90,3 +90,26 @@ describe('ProtocolPacketBuilder.reboot', () => {
         expect(packets[0][2]).toBe(Protocol.Reboot);
     });
 });
+
+describe('ProtocolParser.parseMemory', () => {
+    const { ProtocolParser, Protocol } = require('../../src/services/device-protocol');
+    const layoutBytes = () => {
+        const b = Buffer.alloc(33);
+        b.writeUInt8(Protocol.Memory, 0);
+        [0x40380000, 100, 0x3fc90000, 200, 0x42100000, 300, 0x3c100000, 400].forEach((v, i) => b.writeUInt32LE(v, 1 + 4 * i));
+        return b;
+    };
+    it('parses the layout of an old runtime without firmware identity', () => {
+        const r: any = new ProtocolParser().parse(layoutBytes());
+        expect(r.layout.iflash).toEqual({ address: 0x42100000, size: 300 });
+        expect(r.layout.firmware).toBeUndefined();
+    });
+    it('parses the firmware identity appended by newer runtimes', () => {
+        const tail = Buffer.alloc(32 + 1 + 1 + 8);
+        Buffer.from('ab'.repeat(32), 'hex').copy(tail, 0);
+        tail.writeUInt8(2, 32); tail.writeUInt8(2, 33);
+        tail.writeUInt32LE(0x42086c80, 34); tail.writeUInt32LE(0x4200a0f4, 38);
+        const r: any = new ProtocolParser().parse(Buffer.concat([layoutBytes(), tail]));
+        expect(r.layout.firmware).toEqual({ elfSha256: 'ab'.repeat(32), protocolVersion: 2, sentinels: [0x42086c80, 0x4200a0f4] });
+    });
+});

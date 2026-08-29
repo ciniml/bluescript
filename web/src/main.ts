@@ -57,8 +57,20 @@ $('connect').onclick = async () => {
     await device.connect();
     setStatus(`Connected to ${device.name}. Resetting...`);
     const layout = await device.init();
+    const ignore = ($('ignoreMismatch') as HTMLInputElement).checked;
+    try {
+      const note = compiler!.checkFirmware(layout, ignore);
+      if (note) print(note, 'info');
+    } catch (e) {
+      print(String(e), 'err');
+      print('Flash the runtime from this page ("Flash runtime (USB)") or tick "ignore firmware mismatch" to continue anyway.', 'info');
+      device.disconnect();
+      return;
+    }
     compiler!.reset(layout);
-    setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}`);
+    const fw = compiler!.firmwareDesc;
+    const fwText = fw ? ` Runtime ${fw.version} (built ${fw.buildTime}, ${fw.idfVersion}).` : '';
+    setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}.${fwText}`);
     ($('run') as HTMLButtonElement).disabled = false;
     ($('reset') as HTMLButtonElement).disabled = false;
     ($('reboot') as HTMLButtonElement).disabled = false;

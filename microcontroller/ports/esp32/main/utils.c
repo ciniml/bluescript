@@ -3,6 +3,8 @@
 
 #include "esp_timer.h"
 #include "esp_system.h"
+#include "esp_app_desc.h"
+#include <string.h>
 #include "protocol.h"
 
 #include "./include/utils.h"
@@ -37,4 +39,9 @@ void bs_log_write_error(char* format, ...) {
 void bs_board_reboot(void) {
     fflush(stdout);
     esp_restart();
+}
+
+// SHA-256 of the firmware ELF, as recorded in the app descriptor by esptool.
+void bs_board_get_firmware_sha256(uint8_t out[32]) {
+    memcpy(out, esp_app_get_description()->app_elf_sha256, 32);
 }

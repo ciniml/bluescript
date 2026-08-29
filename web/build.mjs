@@ -58,8 +58,17 @@ await ctxWorker.rebuild();
 if (serve) {
   // The runtime bundle is not part of the esbuild graph: re-copy it when it changes
   // (e.g. after `bscript board build-runtime`).
-  fs.watch(bundleDir, { recursive: true }, () => {
-    try { copyAssets(); console.log('[assets] runtime bundle updated'); } catch (e) { console.error(e); }
+  // Watch the parent directory (non-recursively): the bundle directory itself is
+  // deleted and recreated by build-runtime, which breaks a recursive watcher.
+  // Debounce so that the copy happens once the regeneration has settled.
+  let timer;
+  fs.watch(path.dirname(bundleDir), () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      try {
+        if (fs.existsSync(path.join(bundleDir, 'bundle.json'))) { copyAssets(); console.log('[assets] runtime bundle updated'); }
+      } catch (e) { console.error('[assets] update failed:', e.message); }
+    }, 3000);
   });
   await ctxMain.watch();
   await ctxWorker.watch();

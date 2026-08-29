@@ -1,6 +1,6 @@
 idf_component_register(SRCS "std-module.c" "main.c" "ble.c" "memory.c" "utils.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES core driver esp_partition bt nvs_flash
+                    REQUIRES core driver esp_partition bt nvs_flash esp_app_format
                     LDFRAGMENTS linker.lf
                     WHOLE_ARCHIVE)
 

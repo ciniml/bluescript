@@ -5,5 +5,6 @@ export { Package, PackageForEsp32, PackageForHostUnix, PackageForHostWindows } f
 export { Esp32Toolchain, Esp32ToolchainConfig, Esp32Target, ESP32_TARGET_BUILD_DIRS, EspIdfComponents, EspIdfComponentInfo } from './compiler/board-toolchain/esp32-toolchain';
 export { Esp32ClangToolchain, Esp32ClangToolchainConfig, RuntimeBundleManifest, RUNTIME_BUNDLE_MANIFEST, readRuntimeBundleManifest, RuntimeBundleComponent } from './compiler/board-toolchain/esp32-clang-toolchain';
 export { rewriteWasmArg, toWasmPath, wasmToolRunnerScript, WASM_HOST_ROOT } from './compiler/board-toolchain/tools/wasm-tool';
+export { parseEspAppDesc, checkFirmwareIdentity, assertFirmwareMatches, EspAppDesc, FirmwareIdentity, SENTINEL_SYMBOLS, ENV_IGNORE_FIRMWARE_MISMATCH } from './compiler/board-toolchain/tools/firmware-id';
 export { HostToolchain, HostToolchainConfig, HostUnixToolchain, HostWindowsToolchain } from './compiler/board-toolchain/host-toolchain';
 export { MemoryLayout, MemoryImage, CompileOutput, SharedLibrary } from './compiler/board-toolchain/board-toolchain';

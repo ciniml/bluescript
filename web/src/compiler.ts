@@ -7,6 +7,7 @@ import { GlobalVariableNameTable } from '../../lang/src/transpiler/code-generato
 import { ShadowMemory, MemoryImage, MemoryLayout } from '../../lang/src/compiler/board-toolchain/board-toolchain';
 import { ElfReader } from '../../lang/src/compiler/board-toolchain/tools/elf-reader';
 import generateLinkerScript from '../../lang/src/compiler/board-toolchain/tools/linker-script';
+import { checkFirmwareIdentity, EspAppDesc } from '../../lang/src/compiler/board-toolchain/tools/firmware-id';
 import { ToolchainClient } from './toolchain-client';
 
 export type BundleComponent = { archive: string, includeDirs: string[], requires: string[] };
@@ -21,6 +22,8 @@ export type RuntimeBundle = {
   defines: string[];
   // Every file of the bundle, for lazy loading into the toolchain's filesystem.
   files: string[];
+  // Descriptor of the packaged firmware (for the consistency check).
+  firmware?: EspAppDesc;
   // Component archives, fetched once (headers are loaded lazily).
   archives: { [path: string]: Uint8Array };
   elf: Uint8Array;
@@ -36,7 +39,7 @@ export async function loadRuntimeBundle(baseUrl: string): Promise<RuntimeBundle>
   const bin = async (p: string) => { const r = await fetch(baseUrl + p); if (!r.ok) throw new Error(`${p}: ${r.status}`); return new Uint8Array(await r.arrayBuffer()); };
   const manifest = JSON.parse(await text('bundle.json')) as {
     target: string, ldFiles: string[], components?: { [n: string]: BundleComponent },
-    sysrootIncludeDir?: string, sdkconfigDir?: string, defines?: string[],
+    sysrootIncludeDir?: string, sdkconfigDir?: string, defines?: string[], firmware?: EspAppDesc,
   };
   const files = await fetch(baseUrl + 'files.json').then(r => r.ok ? r.json() as Promise<string[]> : []).catch(() => [] as string[]);
   const archives: { [p: string]: Uint8Array } = {};
@@ -53,7 +56,7 @@ export async function loadRuntimeBundle(baseUrl: string): Promise<RuntimeBundle>
   }
   return {
     baseUrl, target: manifest.target, components: manifest.components ?? {}, sysrootIncludeDir: manifest.sysrootIncludeDir,
-    sdkconfigDir: manifest.sdkconfigDir, defines: manifest.defines ?? [], files, archives,
+    sdkconfigDir: manifest.sdkconfigDir, defines: manifest.defines ?? [], files, archives, firmware: manifest.firmware,
     elf: await bin('bluescript.elf'), stdModule: await text('std-module.bs'), headers, romLd, ldOrder: manifest.ldFiles, flash,
   };
 }
@@ -86,6 +89,16 @@ export class BrowserCompiler {
       const r = await fetch(`${baseUrl}include/${h}`);
       if (r.ok) this.toolchainHeaders[h] = await r.text();
     }));
+  }
+
+  get firmwareDesc() { return this.bundle.firmware; }
+
+  // Verify that the board runs the firmware this compiler was loaded with.
+  // Throws on mismatch unless `ignore` is set; returns an informational message otherwise.
+  checkFirmware(layout: MemoryLayout, ignore = false): string | undefined {
+    const r = checkFirmwareIdentity(layout, this.bundle.firmware, this.definedSymbols);
+    if (!r.ok && !ignore) throw new Error(r.message);
+    return r.ok ? r.message : `WARNING (ignored): ${r.message}`;
   }
 
   // Called after the device reported its memory layout (RESET).

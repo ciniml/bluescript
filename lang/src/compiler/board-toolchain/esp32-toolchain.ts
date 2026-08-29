@@ -7,6 +7,7 @@ import { executeCommand, getErrorMessage } from "../utils";
 import { generateMakefile, generateCompileFlagsFile, esp32MakefilePreset } from "./tools/makefile";
 import { ElfReader } from "./tools/elf-reader";
 import generateLinkerScript from "./tools/linker-script";
+import { assertFirmwareMatches, parseEspAppDesc, EspAppDesc } from "./tools/firmware-id";
 
 
 export type Esp32Target = 'esp32' | 'esp32s3';
@@ -46,6 +47,16 @@ export class Esp32Toolchain implements BoardToolchain<PackageForEsp32, MemoryIma
     get target(): Esp32Target { return this.config.target ?? 'esp32'; }
     get runtimeBuildDir() { return path.join(this.config.runtimeDir, 'ports/esp32', ESP32_TARGET_BUILD_DIRS[this.target]); }
     get runtimeElf() { return path.join(this.runtimeBuildDir, 'bluescript.elf'); }
+    get runtimeBin() { return path.join(this.runtimeBuildDir, 'bluescript.bin'); }
+
+    // Descriptor of the firmware image built next to the ELF, if available.
+    get firmwareDesc(): EspAppDesc | undefined {
+        try {
+            return parseEspAppDesc(fs.readFileSync(this.runtimeBin));
+        } catch {
+            return undefined;
+        }
+    }
     get cRuntimeH() { return path.join(this.config.runtimeDir, 'core/include/c-runtime.h'); }
     get builtinModulePath() { return path.join(this.config.runtimeDir, 'ports/esp32/std-module.bs'); }
     get ld() { return this.config.compilerToolchain.ld; }
@@ -58,6 +69,7 @@ export class Esp32Toolchain implements BoardToolchain<PackageForEsp32, MemoryIma
 
         const elfReader = new ElfReader(this.runtimeElf);
         this.definedSymbols = new Map(elfReader.readAllSymbols().map(s => [s.name, s]));
+        assertFirmwareMatches(memoryLayout, this.firmwareDesc, this.definedSymbols);
     }
 
     async compileAndLink(project: Project<PackageForEsp32>, entryPoints: string[]): Promise<MemoryImage> {

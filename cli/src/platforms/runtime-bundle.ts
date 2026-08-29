@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from '../core/fs';
 import * as nodeFs from 'fs';
-import { RUNTIME_BUNDLE_MANIFEST, RuntimeBundleManifest, RuntimeBundleComponent, ESP32_TARGET_BUILD_DIRS, EspIdfComponents } from '@bscript/lang';
+import { RUNTIME_BUNDLE_MANIFEST, RuntimeBundleManifest, RuntimeBundleComponent, ESP32_TARGET_BUILD_DIRS, EspIdfComponents, parseEspAppDesc } from '@bscript/lang';
 import { Esp32FamilyBoardName } from '../config/board-utils';
 import { GLOBAL_SETTINGS } from '../config/constants';
 
@@ -150,6 +150,7 @@ export function createRuntimeBundle(runtimeDir: string, board: Esp32FamilyBoardN
         target: board,
         vmVersion: GLOBAL_SETTINGS.VM_VERSION,
         ldFiles: ldFiles.map(f => path.basename(f)),
+        firmware: parseEspAppDesc(nodeFs.readFileSync(path.join(buildDir, 'bluescript.bin'))),
         ...packageComponents(bundleDir, buildDir, board, options),
     };
     fs.writeFile(path.join(bundleDir, RUNTIME_BUNDLE_MANIFEST), JSON.stringify(manifest, null, 2));

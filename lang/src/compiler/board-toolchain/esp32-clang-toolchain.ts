@@ -8,6 +8,7 @@ import { ElfReader } from "./tools/elf-reader";
 import generateLinkerScript from "./tools/linker-script";
 import { Esp32Target } from "./esp32-toolchain";
 import { toWasmPath, wasmToolRunnerScript } from "./tools/wasm-tool";
+import { EspAppDesc, assertFirmwareMatches } from "./tools/firmware-id";
 
 
 // Layout of a runtime bundle. A bundle holds everything that is needed to
@@ -40,6 +41,8 @@ export type RuntimeBundleManifest = {
     sdkconfigDir?: string,        // sdkconfig.h
     // Preprocessor definitions used to build the firmware.
     defines?: string[],
+    // Application descriptor of the packaged firmware (bluescript.bin).
+    firmware?: EspAppDesc,
 };
 
 export function readRuntimeBundleManifest(bundleDir: string): RuntimeBundleManifest {
@@ -108,6 +111,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
         }
         const elfReader = new ElfReader(this.runtimeElf);
         this.definedSymbols = new Map(elfReader.readAllSymbols().map(s => [s.name, s]));
+        assertFirmwareMatches(memoryLayout, this.manifest.firmware, this.definedSymbols);
     }
 
     async compileAndLink(project: Project<PackageForEsp32>, entryPoints: string[]): Promise<MemoryImage> {

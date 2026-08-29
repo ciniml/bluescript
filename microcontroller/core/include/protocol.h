@@ -10,6 +10,8 @@
 void CORE_TEXT_SECTION bs_protocol_init(void);
 // Port hook: restart the board (used by the REBOOT command).
 void bs_board_reboot(void);
+// Port hook: SHA-256 of the running firmware's ELF (zeros if unknown).
+void bs_board_get_firmware_sha256(uint8_t out[32]);
 
 void CORE_TEXT_SECTION bs_protocol_write_log(char* message);
 

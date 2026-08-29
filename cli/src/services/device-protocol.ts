@@ -236,12 +236,23 @@ export class ProtocolParser {
             const size = buffer.readUInt32LE(offset); offset += 4;
             return { address, size };
         };
-        const layout = {
+        const layout: MemoryLayout = {
             iram: readMemory(),
             dram: readMemory(),
             iflash: readMemory(),
             dflash: readMemory(),
         };
+        // Newer runtimes append their identity: sha256(32) protocol_version(1) n(1) sentinel addresses(4*n).
+        if (buffer.length - offset >= 34) {
+            const elfSha256 = buffer.toString('hex', offset, offset + 32); offset += 32;
+            const protocolVersion = buffer.readUInt8(offset); offset += 1;
+            const n = buffer.readUInt8(offset); offset += 1;
+            const sentinels: number[] = [];
+            for (let i = 0; i < n && buffer.length - offset >= 4; i++) {
+                sentinels.push(buffer.readUInt32LE(offset)); offset += 4;
+            }
+            layout.firmware = { elfSha256, protocolVersion, sentinels };
+        }
         return { layout };
     }
 

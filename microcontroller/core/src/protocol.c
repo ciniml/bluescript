@@ -28,6 +28,18 @@ typedef enum {
 // Restart the board. Provided by the port; the default does nothing.
 __attribute__((weak)) void bs_board_reboot(void) {}
 
+// SHA-256 of the firmware ELF. Provided by the port; the default reports zeros.
+__attribute__((weak)) void bs_board_get_firmware_sha256(uint8_t out[32]) { memset(out, 0, 32); }
+
+// Functions whose addresses are reported to the host so that it can verify
+// that its copy of the firmware ELF matches the board (see tools/firmware-id.ts).
+extern void bs_stdmodule_main();
+static void* const sentinel_symbols[] = {
+    (void*)bs_stdmodule_main, (void*)bs_protocol_write_log, (void*)try_and_catch,
+};
+#define SENTINEL_COUNT (sizeof(sentinel_symbols) / sizeof(sentinel_symbols[0]))
+#define BS_PROTOCOL_VERSION 2
+
 
 static void send_buffer(uint8_t* buffer, uint32_t len) {
 #ifdef BS_PROTOCL_USE_BLUETOOTH
@@ -99,7 +111,8 @@ void bs_protocol_write_execution_time(int32_t id, float time) {
 }
 
 void bs_protocol_write_memory_layout(bs_memory_layout_t* layout) {
-    uint32_t buffer_len = PROTOCOL_LEN + sizeof(bs_memory_layout_t);
+    // layout(32) + sha256(32) + protocol version(1) + sentinel count(1) + sentinel addresses
+    uint32_t buffer_len = PROTOCOL_LEN + sizeof(bs_memory_layout_t) + 32 + 1 + 1 + 4 * SENTINEL_COUNT;
     uint8_t* buffer = (uint8_t*)malloc(buffer_len);
     if (buffer != NULL) {
         buffer[0] = PROTOCOL_MEMINFO;
@@ -111,6 +124,13 @@ void bs_protocol_write_memory_layout(bs_memory_layout_t* layout) {
         *(uint32_t*)(buffer+21) = layout->iflash_size;
         *(uint32_t*)(buffer+25) = (uint32_t)layout->dflash_address;
         *(uint32_t*)(buffer+29) = layout->dflash_size;
+        bs_board_get_firmware_sha256(buffer + 33);
+        buffer[65] = BS_PROTOCOL_VERSION;
+        buffer[66] = SENTINEL_COUNT;
+        for (uint32_t i = 0; i < SENTINEL_COUNT; i++) {
+            uint32_t addr = (uint32_t)sentinel_symbols[i];
+            memcpy(buffer + 67 + 4 * i, &addr, 4);
+        }
         send_buffer(buffer, buffer_len);
         free(buffer);
     } else {
