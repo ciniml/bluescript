@@ -69,7 +69,10 @@ $('connect').onclick = async () => {
     }
     compiler!.reset(layout);
     const fw = compiler!.firmwareDesc;
-    const fwText = fw ? ` Runtime ${fw.version} (built ${fw.buildTime}, ${fw.idfVersion}).` : '';
+    const idf = fw && /^v?\d/.test(fw.idfVersion) ? `, ESP-IDF ${fw.idfVersion}` : '';
+    // The board reports only a hash; the version/build time come from the bundle and
+    // are shown only once the board has been verified against it.
+    const fwText = fw && layout.firmware ? ` Runtime ${fw.version} (built ${fw.buildTime}${idf}) verified.` : ' Runtime identity not verified.';
     setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}.${fwText}`);
     ($('run') as HTMLButtonElement).disabled = false;
     ($('reset') as HTMLButtonElement).disabled = false;
