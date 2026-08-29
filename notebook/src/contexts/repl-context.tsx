@@ -21,18 +21,27 @@ export type ReplContextT = {
 
 export const ReplContext = createContext<ReplContextT | undefined>(undefined);
 
+// The transport is normally a WebSocket to the CLI. A host page may provide
+// another client with the same interface (e.g. an in-browser compiler with
+// Web Bluetooth) before the provider mounts.
+export type ReplClient = Pick<WebSocketClient, 'on' | 'off' | 'connect' | 'disconnect' | 'getService'>;
+let replClientFactory: () => ReplClient = () => new WebSocketClient();
+export function setReplClientFactory(factory: () => ReplClient) {
+    replClientFactory = factory;
+}
+
 export default function ReplProvider({children}: {children: ReactNode}) {
     const [replState, setReplState] = useState<ReplStateT>('initial');
     const [latestCell, setLatestCell] = useState<EditingCellT | ExecutingCellT>({state: 'editing', code:''});
     const [executedCells, setExecutedCells] = useState<ExecutedCellT[]>([]);
     const [logs, setLogs] = useState<LogT[]>([]);
 
-    const wsc = useRef<WebSocketClient|null>(null);
+    const wsc = useRef<ReplClient|null>(null);
     const replService = useRef<ReplService|null>(null);
 
     useEffect(() => {
         const url = DEFAULT_URL;
-        wsc.current = new WebSocketClient();
+        wsc.current = replClientFactory();
         wsc.current.on('connected', () => {
             setReplState('activated');
             replService.current = wsc.current?.getService('repl') ?? null;

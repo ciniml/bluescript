@@ -12,6 +12,19 @@ A proof of concept that runs the whole BlueScript development loop in a browser 
 Chrome or Edge is required (Web Bluetooth / Web Serial). The page must be served
 from `localhost` or HTTPS.
 
+## Pages
+
+* `index.html` — project editor (files, packages) plus a REPL box.
+* `notebook.html` — the BlueScript notebook UI (`notebook/src`, React) with the
+  in-browser backend: cells are compiled in the page and run over Web Bluetooth.
+  The notebook's `ReplProvider` takes the backend through `setReplClientFactory`;
+  `BrowserReplClient` implements the `WebSocketClient` interface it expects.
+
+A build is published at https://ciniml.github.io/bluescript/ (project editor) and
+https://ciniml.github.io/bluescript/notebook.html (notebook). Prebuilt toolchains and
+the ESP32-S3 runtime bundle are on the
+[wasm-toolchain-esp-21.1.3 release](https://github.com/ciniml/bluescript/releases/tag/wasm-toolchain-esp-21.1.3).
+
 ## Build
 
 ```bash

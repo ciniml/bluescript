@@ -53,8 +53,14 @@ const common = {
 copyAssets();
 const ctxMain = await esbuild.context({ ...common, entryPoints: [path.join(root, 'src/main.ts')], outfile: path.join(dist, 'main.js') });
 const ctxWorker = await esbuild.context({ ...common, entryPoints: [path.join(root, 'src/toolchain-worker.ts')], outfile: path.join(dist, 'toolchain-worker.js') });
+// The notebook UI (React, from notebook/src) with the in-browser backend.
+const ctxNotebook = await esbuild.context({
+  ...common, jsx: 'automatic', loader: { '.module.css': 'local-css', '.css': 'css' },
+  entryPoints: [path.join(root, 'src/notebook-main.tsx')], outfile: path.join(dist, 'notebook-main.js'),
+});
 await ctxMain.rebuild();
 await ctxWorker.rebuild();
+await ctxNotebook.rebuild();
 if (serve) {
   // The runtime bundle is not part of the esbuild graph: re-copy it when it changes
   // (e.g. after `bscript board build-runtime`).
@@ -72,6 +78,7 @@ if (serve) {
   });
   await ctxMain.watch();
   await ctxWorker.watch();
+  await ctxNotebook.watch();
   // HOST/PORT select the bind address; KEYFILE/CERTFILE enable HTTPS (Web Bluetooth /
   // Web Serial require a secure context: localhost or HTTPS).
   const host = process.env.HOST ?? '127.0.0.1';
@@ -82,4 +89,5 @@ if (serve) {
 } else {
   await ctxMain.dispose();
   await ctxWorker.dispose();
+  await ctxNotebook.dispose();
 }
