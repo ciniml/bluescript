@@ -160,7 +160,12 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
     }
 
     // Bundled ESP-IDF components needed by `names`, including transitive requirements.
-    private bundledComponents(names: string[]): { name: string, info: RuntimeBundleComponent }[] {
+    // Components that are part of the runtime firmware itself; their symbols are
+    // always resolvable, so packages may list them without the bundle carrying them.
+    private static readonly FIRMWARE_COMPONENTS = new Set(['core', 'main']);
+
+    private bundledComponents(rawNames: string[]): { name: string, info: RuntimeBundleComponent }[] {
+        const names = rawNames.filter(n => !Esp32ClangToolchain.FIRMWARE_COMPONENTS.has(n));
         const available = this.manifest.components ?? {};
         const missing = names.filter(n => !available[n]);
         if (missing.length > 0) {

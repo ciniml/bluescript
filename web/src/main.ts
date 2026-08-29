@@ -3,6 +3,7 @@ import { ToolchainClient } from './toolchain-client';
 import { WebBluetoothDevice } from './ble';
 import { flashRuntime } from './flash';
 import type { MemoryImage } from '../../lang/src/compiler/board-toolchain/board-toolchain';
+import { installPackage, installedPackages, removePackage, readProjectDeps, writeProjectDeps } from './packages';
 
 const $ = (id: string) => document.getElementById(id)!;
 const out = $('output') as HTMLPreElement;
@@ -23,17 +24,46 @@ const compiler = new BrowserCompiler(tools);
 let device: WebBluetoothDevice | undefined;
 let currentFile = 'index.bs';
 
-// --- project files (persisted per browser) ---
+// --- project files and packages (persisted per browser) ---
 function loadProjectFiles() {
-  let files: { [name: string]: string } | null = null;
-  try { files = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'); } catch { /* ignore */ }
-  for (const [name, text] of Object.entries(files ?? DEFAULT_FILES)) compiler.writeSource(name, text);
+  let saved: { [path: string]: string } | null = null;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null'); } catch { /* ignore */ }
+  if (saved && Object.keys(saved).some(p => p.startsWith('src/'))) {
+    compiler.importProject(saved);
+  } else {
+    for (const [name, text] of Object.entries(DEFAULT_FILES)) compiler.writeSource(name, text);
+  }
 }
 function saveProjectFiles() {
-  const files: { [name: string]: string } = {};
-  for (const n of compiler.listSources()) files[n] = compiler.readSource(n);
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(files)); } catch { /* ignore */ }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(compiler.exportProject())); } catch { /* ignore */ }
 }
+function renderPackageList() {
+  const ul = $('packageList');
+  ul.innerHTML = '';
+  for (const name of installedPackages(compiler.fs)) {
+    const li = document.createElement('li');
+    li.textContent = name;
+    ul.appendChild(li);
+  }
+}
+$('installPackage').onclick = async () => {
+  const url = prompt('GitHub URL of the package', 'https://github.com/bluescript-lang/pkg-gpio-esp32.git');
+  if (!url) return;
+  try {
+    const names = await installPackage(compiler.fs, url, undefined, (m) => print(m, 'info'));
+    const deps = readProjectDeps(compiler.fs);
+    deps[names[0]] = url;
+    writeProjectDeps(compiler.fs, deps);
+    saveProjectFiles(); renderPackageList();
+  } catch (e) { print(String(e), 'err'); }
+};
+$('removePackage').onclick = () => {
+  const name = prompt('Package to uninstall', installedPackages(compiler.fs)[0] ?? '');
+  if (!name) return;
+  removePackage(compiler.fs, name);
+  const deps = readProjectDeps(compiler.fs); delete deps[name]; writeProjectDeps(compiler.fs, deps);
+  saveProjectFiles(); renderPackageList();
+};
 function renderFileList() {
   const ul = $('fileList');
   ul.innerHTML = '';
@@ -73,6 +103,7 @@ $('removeFile').onclick = () => {
   loadProjectFiles();
   editor.value = compiler.readSource(currentFile);
   renderFileList();
+  renderPackageList();
   setStatus(`Ready (${compiler.target}, toolchain loaded in ${((performance.now() - t) / 1000).toFixed(1)} s). Connect a board.`);
   enable(['connect', 'flash'], true);
   if (location.search.includes('selftest')) {
@@ -186,6 +217,20 @@ async function selfTest() {
   let t0 = performance.now();
   record(await compiler.buildProject());
   print(`project built in ${(performance.now() - t0).toFixed(0)} ms`, 'info');
+  // A project that uses a package installed from GitHub.
+  if (!location.search.includes('offline')) {
+    await installPackage(compiler.fs, 'https://github.com/bluescript-lang/pkg-gpio-esp32.git', undefined, (m) => print(m, 'info'));
+    writeProjectDeps(compiler.fs, { gpio: 'https://github.com/bluescript-lang/pkg-gpio-esp32.git' });
+    compiler.writeSource('index.bs', 'import { GPIO, PinMode } from "gpio";\nlet led = new GPIO(2, PinMode.Output);\nconsole.log("gpio package");\n');
+    compiler.reset(layout);
+    t0 = performance.now();
+    record(await compiler.buildProject());
+    print(`project with package built in ${(performance.now() - t0).toFixed(0)} ms`, 'info');
+    writeProjectDeps(compiler.fs, {});
+    compiler.writeSource('index.bs', DEFAULT_FILES['index.bs']);
+    compiler.reset(layout);
+    record(await compiler.buildProject());
+  }
   const fragments = ['console.log(fib(10));',
                      'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));',
                      ...(compiler.componentNames.length > 0 ? [

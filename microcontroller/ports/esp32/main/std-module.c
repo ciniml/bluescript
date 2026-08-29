@@ -46,9 +46,9 @@ void mth_0_Console(value_t self, value_t _message);
 void mth_1_Console(value_t self, value_t _message);
 float mth_0_Time(value_t self);
 void mth_1_Time(value_t self, int32_t _ms);
-void mth_0_GPIO(value_t self, int32_t _pin, int32_t _mode);
-void mth_1_GPIO(value_t self, int32_t _pin, int32_t _level);
-int32_t mth_2_GPIO(value_t self, int32_t _pin);
+void mth_0_BuiltinGpio(value_t self, int32_t _pin, int32_t _mode);
+void mth_1_BuiltinGpio(value_t self, int32_t _pin, int32_t _level);
+int32_t mth_2_BuiltinGpio(value_t self, int32_t _pin);
 extern CLASS_OBJECT(object_class, 1);
 void bs_stdmodule_main();
 ROOT_SET_DECL(global_rootset0, 3);
@@ -64,12 +64,12 @@ static const uint16_t plist_Time[] = {  };
 CLASS_OBJECT(class_Time, 2) = {
     .body = { .s = 0, .i = 0, .cn = "Time", .sc = &object_class.clazz , .an = (void*)0, .pt = { .size = 0, .offset = 0,
     .unboxed = 0, .prop_names = plist_Time, .unboxed_types = "" }, .mt = { .size = 2, .names = mnames_Time, .signatures = msigs_Time }, .vtbl = { mth_0_Time, mth_1_Time,  }}};
-static const uint16_t mnames_GPIO[] = { 12, 13, 14, };
-static const char* const msigs_GPIO[] = { "(ii)v", "(ii)v", "(i)i", };
-static const uint16_t plist_GPIO[] = {  };
-CLASS_OBJECT(class_GPIO, 3) = {
-    .body = { .s = 0, .i = 0, .cn = "GPIO", .sc = &object_class.clazz , .an = (void*)0, .pt = { .size = 0, .offset = 0,
-    .unboxed = 0, .prop_names = plist_GPIO, .unboxed_types = "" }, .mt = { .size = 3, .names = mnames_GPIO, .signatures = msigs_GPIO }, .vtbl = { mth_0_GPIO, mth_1_GPIO, mth_2_GPIO,  }}};
+static const uint16_t mnames_BuiltinGpio[] = { 12, 13, 14, };
+static const char* const msigs_BuiltinGpio[] = { "(ii)v", "(ii)v", "(i)i", };
+static const uint16_t plist_BuiltinGpio[] = {  };
+CLASS_OBJECT(class_BuiltinGpio, 3) = {
+    .body = { .s = 0, .i = 0, .cn = "BuiltinGpio", .sc = &object_class.clazz , .an = (void*)0, .pt = { .size = 0, .offset = 0,
+    .unboxed = 0, .prop_names = plist_BuiltinGpio, .unboxed_types = "" }, .mt = { .size = 3, .names = mnames_BuiltinGpio, .signatures = msigs_BuiltinGpio }, .vtbl = { mth_0_BuiltinGpio, mth_1_BuiltinGpio, mth_2_BuiltinGpio,  }}};
 
 static void fbody_print(value_t self, value_t _message) {
   ROOT_SET_N(func_rootset,2,VALUE_UNDEF_2)
@@ -139,7 +139,7 @@ void mth_1_Time(value_t self, int32_t _ms) {
 value_t new_Time(value_t self) { return self; }
 
 
-void mth_0_GPIO(value_t self, int32_t _pin, int32_t _mode) {
+void mth_0_BuiltinGpio(value_t self, int32_t _pin, int32_t _mode) {
   ROOT_SET_N(func_rootset,1,VALUE_UNDEF)
   func_rootset.values[0] = self;
   {
@@ -152,7 +152,7 @@ void mth_0_GPIO(value_t self, int32_t _pin, int32_t _mode) {
   DELETE_ROOT_SET(func_rootset)
 }
 
-void mth_1_GPIO(value_t self, int32_t _pin, int32_t _level) {
+void mth_1_BuiltinGpio(value_t self, int32_t _pin, int32_t _level) {
   ROOT_SET_N(func_rootset,1,VALUE_UNDEF)
   func_rootset.values[0] = self;
   {
@@ -161,7 +161,7 @@ void mth_1_GPIO(value_t self, int32_t _pin, int32_t _level) {
   DELETE_ROOT_SET(func_rootset)
 }
 
-int32_t mth_2_GPIO(value_t self, int32_t _pin) {
+int32_t mth_2_BuiltinGpio(value_t self, int32_t _pin) {
   ROOT_SET_N(func_rootset,1,VALUE_UNDEF)
   func_rootset.values[0] = self;
   {
@@ -171,7 +171,7 @@ int32_t mth_2_GPIO(value_t self, int32_t _pin) {
   }
 }
 
-value_t new_GPIO(value_t self) { return self; }
+value_t new_BuiltinGpio(value_t self) { return self; }
 
 
 void bs_stdmodule_main() {
@@ -180,6 +180,6 @@ void bs_stdmodule_main() {
   ;
   set_global_variable(&global_rootset0.values[0], new_Console(func_rootset.values[0]=gc_new_object(&class_Console.clazz)));
   set_global_variable(&global_rootset0.values[1], new_Time(func_rootset.values[0]=gc_new_object(&class_Time.clazz)));
-  set_global_variable(&global_rootset0.values[2], new_GPIO(func_rootset.values[0]=gc_new_object(&class_GPIO.clazz)));
+  set_global_variable(&global_rootset0.values[2], new_BuiltinGpio(func_rootset.values[0]=gc_new_object(&class_BuiltinGpio.clazz)));
   DELETE_ROOT_SET(func_rootset)
 }

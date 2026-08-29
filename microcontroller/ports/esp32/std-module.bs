@@ -81,10 +81,11 @@ class Time {
     }
 }
 
-// GPIO access built into the runtime, so that programs can drive pins
+// GPIO access built into the runtime (class name chosen not to clash with the
+// GPIO class of the standard gpio package), so that programs can drive pins
 // without linking ESP-IDF driver code (see espIdfComponents for the
 // full driver API).
-class GPIO {
+class BuiltinGpio {
     // mode: 0 = input, 1 = output, 2 = input/output (open drain is not supported)
     setDirection(pin: integer, mode: integer) {
         code`
@@ -107,4 +108,4 @@ class GPIO {
 
 const console = new Console();
 const time = new Time();
-const gpio = new GPIO();
+const gpio = new BuiltinGpio();

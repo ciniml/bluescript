@@ -13,10 +13,10 @@ import { checkFirmwareIdentity, EspAppDesc } from '../../lang/src/compiler/board
 import { ElfReader } from '../../lang/src/compiler/board-toolchain/tools/elf-reader';
 import { ToolchainClient } from './toolchain-client';
 import type { ToolName } from './toolchain-worker';
+import { readProjectDeps, readPackageConfig } from './packages';
 
-export const BUNDLE_DIR = '/bundle';
-export const PROJECT_DIR = '/project';
-export const PROJECT_NAME = 'app';
+import { BUNDLE_DIR, PROJECT_DIR, PROJECT_NAME, PACKAGES_DIR } from './paths';
+export { BUNDLE_DIR, PROJECT_DIR, PROJECT_NAME };
 
 export type BundleInfo = {
   baseUrl: string;
@@ -75,7 +75,12 @@ export class BrowserToolRunner implements ToolRunner {
       const p = `${BUNDLE_DIR}/${f}`;
       if (!this.fs.exists(p)) lazy[p] = new URL(this.bundle.baseUrl + f, location.href).href;
     }
-    const res = await this.tools.run(name, args, files, [`${PROJECT_DIR}/dist`], lazy, cwd, this.fs.directories());
+    // Build outputs of the project and of every installed package.
+    const outputs = [`${PROJECT_DIR}/dist`];
+    if (this.fs.exists(PACKAGES_DIR)) {
+      for (const e of this.fs.readdir(PACKAGES_DIR)) if (e.isDirectory) outputs.push(`${PACKAGES_DIR}/${e.name}/dist`);
+    }
+    const res = await this.tools.run(name, args, files, outputs, lazy, cwd, this.fs.directories());
     for (const [p, data] of Object.entries(res.outputs)) this.fs.writeFile(p, Buffer.from(data));
     if (res.code !== 0) {
       throw new Error(`${tool} failed (exit ${res.code}):\n${res.stderr}${res.error ?? ''}`);
@@ -112,6 +117,21 @@ export class BrowserCompiler {
   get flashFiles() { return this.bundle!.flash; }
   get componentNames() { return this.bundle!.components; }
 
+  // Persisted project state: sources, dependencies and installed packages.
+  exportProject(): { [path: string]: string } {
+    const out: { [p: string]: string } = {};
+    for (const [p, data] of this.fs.entries(PROJECT_DIR)) {
+      if (p.startsWith(`${PROJECT_DIR}/dist/`)) continue;
+      out[p.slice(PROJECT_DIR.length + 1)] = data.toString('base64');
+    }
+    return out;
+  }
+  importProject(files: { [path: string]: string }) {
+    this.fs.rm(PROJECT_DIR);
+    this.fs.mkdir(`${PROJECT_DIR}/src`);
+    for (const [p, b64] of Object.entries(files)) this.fs.writeFile(`${PROJECT_DIR}/${p}`, Buffer.from(b64, 'base64'));
+  }
+
   // Source files of the project (relative to src/).
   listSources(): string[] {
     const out: string[] = [];
@@ -144,11 +164,19 @@ export class BrowserCompiler {
   }
 
   private newProject(): Project<PackageForEsp32> {
+    const layout = { distDir: 'dist', buildDir: 'dist/build', packageDir: 'packages' };
     return Project.load<PackageForEsp32>(PROJECT_NAME, (name) => {
-      if (name !== PROJECT_NAME) throw new Error(`Package ${name} is not available in the browser (packages cannot be installed yet).`);
+      if (name === PROJECT_NAME) {
+        return new PackageForEsp32(name, { rootDir: PROJECT_DIR, entry: 'src/index.bs', sourceDir: 'src', ...layout },
+          Object.keys(readProjectDeps(this.fs)), this.componentNames, this.fs);
+      }
+      if (!this.fs.exists(`${PACKAGES_DIR}/${name}/bsconfig.json`)) {
+        throw new Error(`Package ${name} is not installed. Install it with its GitHub URL first.`);
+      }
+      const cfg = readPackageConfig(this.fs, name);
       return new PackageForEsp32(name, {
-        rootDir: PROJECT_DIR, entry: 'src/index.bs', sourceDir: 'src', distDir: 'dist', buildDir: 'dist/build', packageDir: 'packages',
-      }, [], this.componentNames, this.fs);
+        rootDir: `${PACKAGES_DIR}/${name}`, entry: cfg.entryFile ?? './index.bs', sourceDir: cfg.srcDir ?? '.', ...layout,
+      }, Object.keys(cfg.dependencies ?? {}), cfg.espIdfComponents ?? [], this.fs);
     });
   }
 
