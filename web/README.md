@@ -20,8 +20,10 @@ from `localhost` or HTTPS.
   The notebook's `ReplProvider` takes the backend through `setReplClientFactory`;
   `BrowserReplClient` implements the `WebSocketClient` interface it expects.
 
-A build is published at https://ciniml.github.io/bluescript/ (project editor) and
-https://ciniml.github.io/bluescript/notebook.html (notebook). Prebuilt toolchains and
+A build is published from the `gh-pages` branch of the fork at
+https://www.fugafuga.org/bluescript/ (project editor) and
+https://www.fugafuga.org/bluescript/notebook.html (notebook); use the HTTPS URLs
+(Web Bluetooth / Web Serial need a secure context). Prebuilt toolchains and
 the ESP32-S3 runtime bundle are on the
 [wasm-toolchain-esp-21.1.3 release](https://github.com/ciniml/bluescript/releases/tag/wasm-toolchain-esp-21.1.3).
 
