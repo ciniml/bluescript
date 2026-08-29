@@ -35,7 +35,8 @@ async function selfTest() {
                    iflash: { address: 0x42100000, size: 40960 }, dflash: { address: 0x3c100000, size: 40960 } };
   compiler!.reset(layout);
   const results: any[] = [];
-  for (const src of [($('code') as HTMLTextAreaElement).value, 'console.log(fib(10));']) {
+  for (const src of [($('code') as HTMLTextAreaElement).value, 'console.log(fib(10));',
+                     'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));']) {
     const image = await compiler!.compileFragment(src, (m) => print(m, 'info'));
     const r = { iflash: image.iflash?.data.length ?? 0, dflash: image.dflash?.data.length ?? 0, dram: image.dram?.data.length ?? 0, entry: image.entryPoints[0].address };
     print(`selftest: ${JSON.stringify(r)}`, 'info');

@@ -1,7 +1,9 @@
 code`
 #include <string.h>
 #include <stdio.h>
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 #include "esp_timer.h"
 #include "protocol.h"
 #include "c-runtime.h"
@@ -79,5 +81,30 @@ class Time {
     }
 }
 
+// GPIO access built into the runtime, so that programs can drive pins
+// without linking ESP-IDF driver code (see espIdfComponents for the
+// full driver API).
+class GPIO {
+    // mode: 0 = input, 1 = output, 2 = input/output (open drain is not supported)
+    setDirection(pin: integer, mode: integer) {
+        code`
+    gpio_reset_pin((gpio_num_t)${pin});
+    gpio_set_direction((gpio_num_t)${pin},
+        ${mode} == 0 ? GPIO_MODE_INPUT : (${mode} == 1 ? GPIO_MODE_OUTPUT : GPIO_MODE_INPUT_OUTPUT));
+        `
+    }
+
+    setLevel(pin: integer, level: integer) {
+        code`gpio_set_level((gpio_num_t)${pin}, ${level});`
+    }
+
+    getLevel(pin: integer): integer {
+        let level: integer = 0;
+        code`${level} = gpio_get_level((gpio_num_t)${pin});`
+        return level;
+    }
+}
+
 const console = new Console();
 const time = new Time();
+const gpio = new GPIO();
