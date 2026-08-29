@@ -111,8 +111,14 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     }
 
     // Collect the build artifacts into a runtime bundle for `setup-lite`.
-    createBundle(): string {
-        return createRuntimeBundle(this.getRuntimeDir(), this.boardName);
+    createBundle(components: string[] = []): string {
+        const boardConfig = this.globalConfigHandler.getBoardConfig(this.boardName);
+        const idf = boardConfig && isEsp32IdfBoardConfig(boardConfig) ? boardConfig : undefined;
+        return createRuntimeBundle(this.getRuntimeDir(), this.boardName, {
+            components,
+            espDir: idf?.rootDir,
+            gccPath: idf?.toolchain.gcc,
+        });
     }
 
     // esptool is used when flashing a prebuilt bundle (no ESP-IDF available).

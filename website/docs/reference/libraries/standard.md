@@ -14,6 +14,13 @@ The libraries listed below are for **ESP32** hardware. They are not available on
 
 Currently, the following libraries are available for stable use.
 
+### Built-in (no import needed)
+*   **`gpio`** — minimal GPIO access compiled into the ESP32 / ESP32-S3 runtime, available in every environment including `setup-lite` and the browser.
+    *   `gpio.setDirection(pin: integer, mode: integer)` — `mode`: 0 = input, 1 = output, 2 = input/output
+    *   `gpio.setLevel(pin: integer, level: integer)`
+    *   `gpio.getLevel(pin: integer): integer`
+    *   Example: `gpio.setDirection(2, 1); gpio.setLevel(2, 1);`
+
 ### Digital I/O
 *   **GPIO (General Purpose Input/Output)**
     *   Control pins, read digital states, and handle interrupts.

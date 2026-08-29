@@ -18,8 +18,8 @@ export class ToolchainClient {
     return this.post({ id: this.nextId++, warmup: tools } as any);
   }
 
-  run(tool: ToolName, args: string[], files: { [p: string]: Uint8Array }, outputs: string[]): Promise<ToolResponse> {
-    return this.post({ id: this.nextId++, tool, args, files, outputs });
+  run(tool: ToolName, args: string[], files: { [p: string]: Uint8Array }, outputs: string[], lazyFiles?: { [p: string]: string }): Promise<ToolResponse> {
+    return this.post({ id: this.nextId++, tool, args, files, outputs, lazyFiles });
   }
 
   private post(req: ToolRequest | any): Promise<ToolResponse> {

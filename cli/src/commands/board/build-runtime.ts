@@ -5,7 +5,7 @@ import { DEFAULT_DEVICE_NAME } from "../../config/project-config";
 import { getFlashRuntimeHandler } from "./flash-runtime";
 
 
-export async function handleBuildRuntimeCommand(board: string, options: { deviceName?: string, bundle?: boolean }) {
+export async function handleBuildRuntimeCommand(board: string, options: { deviceName?: string, bundle?: boolean, components?: string }) {
     try {
         const handler = getFlashRuntimeHandler(board);
 
@@ -18,7 +18,8 @@ export async function handleBuildRuntimeCommand(board: string, options: { device
         let bundleDir: string | undefined;
         if (options.bundle !== false) {
             await runStep('Creating the runtime bundle...', async () => {
-                bundleDir = handler.createBundle();
+                const components = (options.components ?? '').split(',').map(s => s.trim()).filter(s => s.length > 0);
+                bundleDir = handler.createBundle(components);
             });
         }
 
@@ -46,5 +47,6 @@ export function registerBuildRuntimeCommand(program: Command) {
         .argument('<board-name>', 'the name of the board to build for (e.g., esp32, esp32s3)')
         .option('-d, --device-name <device-name>', `BLE device name embedded in the runtime, the default is '${DEFAULT_DEVICE_NAME}'`)
         .option('--no-bundle', 'do not create the runtime bundle')
+        .option('--components <names>', 'comma-separated ESP-IDF components to package in the bundle (e.g. esp_driver_gpio,esp_driver_i2c)')
         .action(handleBuildRuntimeCommand);
 }

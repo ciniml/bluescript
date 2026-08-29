@@ -208,6 +208,8 @@ Builds the BlueScript runtime for the board **without flashing it**. Useful when
 | Option | Alias | Description |
 | :--- | :--- | :--- |
 | `--device-name <name>` | `-d` | BLE device name embedded in the runtime (default `BlueScript`). |
+| `--components <names>` | | Comma-separated ESP-IDF components to package in the bundle (e.g. `esp_driver_gpio,esp_driver_i2c`), so that projects set up with `setup-lite` can use them through `espIdfComponents`. Their public requirements and the common components are included automatically. |
+| `--no-bundle` | | Do not create the runtime bundle. |
 
 By default the command also writes a *runtime bundle* (`ports/esp32/bundle-<board>` under the runtime directory) that can be copied to a machine without ESP-IDF and installed with `bscript board setup-lite`. Pass `--no-bundle` to skip it.
 
@@ -247,7 +249,7 @@ The `wasm` toolchain is built from Espressif's LLVM with Emscripten (see `tools/
 
 **Limitations of the lite environment:**
 
-*   Projects that use `espIdfComponents` cannot be compiled (ESP-IDF component libraries are not available).
+*   Projects can only use the ESP-IDF components that were packaged in the bundle with `bscript board build-runtime --components ...`. GPIO is also available without any component through the built-in `gpio` object.
 *   The BLE device name is fixed to the one the bundle was built with (`--device-name` is not supported).
 *   `bscript board build-runtime` is not available.
 

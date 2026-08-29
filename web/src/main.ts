@@ -36,7 +36,9 @@ async function selfTest() {
   compiler!.reset(layout);
   const results: any[] = [];
   for (const src of [($('code') as HTMLTextAreaElement).value, 'console.log(fib(10));',
-                     'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));']) {
+                     'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));',
+                     ...(compiler!.componentNames.length > 0 ? [
+                       'code`#include "driver/gpio.h"`\nfunction pullup(pin: integer) { code`gpio_set_pull_mode((gpio_num_t)${pin}, GPIO_PULLUP_ONLY);` }\npullup(2); console.log("pullup");'] : [])]) {
     const image = await compiler!.compileFragment(src, (m) => print(m, 'info'));
     const r = { iflash: image.iflash?.data.length ?? 0, dflash: image.dflash?.data.length ?? 0, dram: image.dram?.data.length ?? 0, entry: image.entryPoints[0].address };
     print(`selftest: ${JSON.stringify(r)}`, 'info');

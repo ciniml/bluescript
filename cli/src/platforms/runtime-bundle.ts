@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from '../core/fs';
 import * as nodeFs from 'fs';
-import { RUNTIME_BUNDLE_MANIFEST, RuntimeBundleManifest, ESP32_TARGET_BUILD_DIRS } from '@bscript/lang';
+import { RUNTIME_BUNDLE_MANIFEST, RuntimeBundleManifest, RuntimeBundleComponent, ESP32_TARGET_BUILD_DIRS, EspIdfComponents } from '@bscript/lang';
 import { Esp32FamilyBoardName } from '../config/board-utils';
 import { GLOBAL_SETTINGS } from '../config/constants';
 
@@ -34,9 +34,85 @@ export function runtimeBundleOutputDir(runtimeDir: string, board: Esp32FamilyBoa
     return path.join(runtimeDir, 'ports/esp32', `bundle-${board}`);
 }
 
+export type RuntimeBundleOptions = {
+    outDir?: string,
+    // ESP-IDF components to package (with their transitive requirements).
+    components?: string[],
+    espDir?: string,        // ESP-IDF root (the `esp` directory of the board environment)
+    gccPath?: string,       // xtensa gcc; used to locate the newlib headers
+};
+
+// Preprocessor definitions the firmware was compiled with (from compile_commands.json).
+function firmwareDefines(buildDir: string): string[] {
+    const ccPath = path.join(buildDir, 'compile_commands.json');
+    if (!fs.exists(ccPath)) return [];
+    const entries = JSON.parse(fs.readFile(ccPath)) as { file: string, command: string }[];
+    const entry = entries.find(e => e.file.endsWith('main/std-module.c')) ?? entries[0];
+    if (!entry) return [];
+    return entry.command.split(/\s+/)
+        .filter(t => t.startsWith('-D') && !t.startsWith('-DINPUT_DEVICE_NAME') && !t.startsWith('-DIDF_VER'))
+        .map(t => t.replace(/\\"/g, '"'));
+}
+
+// Lists every file of a directory tree relative to `root` (for lazy loading in browsers).
+function listFiles(root: string, dir = root, out: string[] = []): string[] {
+    for (const e of nodeFs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) listFiles(root, p, out);
+        else if (e.isFile()) out.push(path.relative(root, p).split(path.sep).join('/'));
+    }
+    return out;
+}
+
+function packageComponents(bundleDir: string, buildDir: string, board: Esp32FamilyBoardName, options: RuntimeBundleOptions): Partial<RuntimeBundleManifest> {
+    const names = options.components ?? [];
+    if (names.length === 0) return {};
+    if (!options.espDir) throw new Error('The ESP-IDF directory is needed to package components.');
+    const idf = new EspIdfComponents(buildDir, options.espDir, board);
+    const components: { [name: string]: RuntimeBundleComponent } = {};
+    // Every requested component plus the transitive closure of its requirements.
+    for (const root of names) {
+        const closure = idf.resolveForBundle([root]);
+        for (const c of closure) {
+            if (components[c.name]) continue;
+            const compDir = path.join('components', c.name);
+            fs.makeDir(path.join(bundleDir, compDir));
+            const archive = path.join(compDir, path.basename(c.archive));
+            nodeFs.copyFileSync(c.archive, path.join(bundleDir, archive));
+            const includeDirs: string[] = [];
+            for (const inc of c.includeDirs) {
+                const src = path.join(c.dir, inc);
+                if (!fs.exists(src)) continue;
+                const dest = path.join(compDir, inc);
+                nodeFs.cpSync(src, path.join(bundleDir, dest), { recursive: true, filter: p => !p.includes('/c++/') });
+                includeDirs.push(dest.split(path.sep).join('/'));
+            }
+            components[c.name] = { archive: archive.split(path.sep).join('/'), includeDirs, requires: [] };
+        }
+        components[root].requires = Array.from(new Set(closure.map(c => c.name))).filter(n => n !== root);
+    }
+    // sdkconfig.h and the newlib headers.
+    fs.makeDir(path.join(bundleDir, 'config'));
+    nodeFs.copyFileSync(path.join(buildDir, 'config/sdkconfig.h'), path.join(bundleDir, 'config/sdkconfig.h'));
+    let sysrootIncludeDir: string | undefined;
+    if (options.gccPath) {
+        const candidates = [
+            path.join(path.dirname(options.gccPath), '..', 'xtensa-esp-elf', 'include'),
+            path.join(path.dirname(options.gccPath), '..', `xtensa-${board}-elf`, 'include'),
+        ];
+        const found = candidates.find(c => fs.exists(path.join(c, 'stdio.h')));
+        if (found) {
+            nodeFs.cpSync(found, path.join(bundleDir, 'sysroot/include'), { recursive: true, filter: p => !p.includes('/c++') });
+            sysrootIncludeDir = 'sysroot/include';
+        }
+    }
+    return { components, sysrootIncludeDir, sdkconfigDir: 'config', defines: firmwareDefines(buildDir) };
+}
+
 // Collect the build artifacts of the runtime into a self-contained bundle that
 // can be used by `bscript board setup-lite` on a machine without ESP-IDF.
-export function createRuntimeBundle(runtimeDir: string, board: Esp32FamilyBoardName, outDir?: string): string {
+export function createRuntimeBundle(runtimeDir: string, board: Esp32FamilyBoardName, options: RuntimeBundleOptions = {}): string {
+    const outDir = options.outDir;
     const portDir = path.join(runtimeDir, 'ports/esp32');
     const buildDir = path.join(portDir, ESP32_TARGET_BUILD_DIRS[board]);
     const bundleDir = outDir ?? runtimeBundleOutputDir(runtimeDir, board);
@@ -74,7 +150,10 @@ export function createRuntimeBundle(runtimeDir: string, board: Esp32FamilyBoardN
         target: board,
         vmVersion: GLOBAL_SETTINGS.VM_VERSION,
         ldFiles: ldFiles.map(f => path.basename(f)),
+        ...packageComponents(bundleDir, buildDir, board, options),
     };
     fs.writeFile(path.join(bundleDir, RUNTIME_BUNDLE_MANIFEST), JSON.stringify(manifest, null, 2));
+    // File list for consumers that cannot enumerate directories (e.g. the browser).
+    fs.writeFile(path.join(bundleDir, 'files.json'), JSON.stringify(listFiles(bundleDir).filter(f => f !== 'files.json')));
     return bundleDir;
 }

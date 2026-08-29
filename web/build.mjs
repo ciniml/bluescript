@@ -27,10 +27,12 @@ function copyAssets() {
   for (const f of ['clang.js', 'clang.wasm', 'lld.js', 'lld.wasm', 'llvm-ar.js', 'llvm-ar.wasm']) {
     fs.copyFileSync(path.join(toolchainDir, 'bin', f), path.join(tcOut, 'bin', f));
   }
+  // clang's own headers (freestanding C subset: std*.h and their helpers).
   const resDir = fs.readdirSync(path.join(toolchainDir, 'lib/clang')).map(v => path.join(toolchainDir, 'lib/clang', v, 'include'))[0];
-  for (const h of ['stdint.h', 'stdbool.h', 'stddef.h', 'stdarg.h']) {
-    if (fs.existsSync(path.join(resDir, h))) fs.copyFileSync(path.join(resDir, h), path.join(tcOut, 'include', h));
-  }
+  const headerPattern = /^(std[a-z]*\.h|__std[a-z_]*\.h|limits\.h|float\.h|inttypes\.h|iso646\.h|varargs\.h|tgmath\.h|unwind\.h)$/;
+  const headers = fs.readdirSync(resDir).filter(f => headerPattern.test(f));
+  for (const h of headers) fs.copyFileSync(path.join(resDir, h), path.join(tcOut, 'include', h));
+  fs.writeFileSync(path.join(tcOut, 'include', 'files.json'), JSON.stringify(headers));
   // Runtime bundle.
   const bOut = path.join(dist, 'bundle');
   fs.rmSync(bOut, { recursive: true, force: true });

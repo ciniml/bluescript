@@ -22,11 +22,24 @@ import { toWasmPath, wasmToolRunnerScript } from "./tools/wasm-tool";
 //   <bundle>/flash/*            flash images and flash_args (for esptool)
 export const RUNTIME_BUNDLE_MANIFEST = 'bundle.json';
 
+export type RuntimeBundleComponent = {
+    archive: string,        // relative to the bundle
+    includeDirs: string[],  // relative to the bundle
+    requires: string[],     // transitive requirements (component names)
+};
+
 export type RuntimeBundleManifest = {
     target: Esp32Target,
     vmVersion: string,
     // Linker scripts under rom-ld/, in the order they must be included.
     ldFiles: string[],
+    // ESP-IDF components packaged with the bundle (optional).
+    components?: { [name: string]: RuntimeBundleComponent },
+    // Directories (relative to the bundle) needed to compile against ESP-IDF headers.
+    sysrootIncludeDir?: string,   // newlib headers
+    sdkconfigDir?: string,        // sdkconfig.h
+    // Preprocessor definitions used to build the firmware.
+    defines?: string[],
 };
 
 export function readRuntimeBundleManifest(bundleDir: string): RuntimeBundleManifest {
@@ -141,13 +154,42 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
         ];
     }
 
-    private async compilePackage(pkg: PackageForEsp32): Promise<void> {
-        if (pkg.espIdfComponents.length > 0) {
+    // Bundled ESP-IDF components needed by `names`, including transitive requirements.
+    private bundledComponents(names: string[]): { name: string, info: RuntimeBundleComponent }[] {
+        const available = this.manifest.components ?? {};
+        const missing = names.filter(n => !available[n]);
+        if (missing.length > 0) {
             throw new Error(
-                `Package ${pkg.name} uses ESP-IDF components (${pkg.espIdfComponents.join(', ')}), ` +
-                `which are not available with the clang toolchain. ` +
-                `Set up the full ESP-IDF environment with 'bscript board setup ${this.target}'.`);
+                `ESP-IDF components ${missing.join(', ')} are not included in the runtime bundle ` +
+                `(available: ${Object.keys(available).join(', ') || 'none'}). ` +
+                `Rebuild the bundle with 'bscript board build-runtime ${this.target} --components ${names.join(',')}' ` +
+                `or set up the full ESP-IDF environment with 'bscript board setup ${this.target}'.`);
         }
+        const closure = new Set<string>();
+        for (const n of names) {
+            closure.add(n);
+            available[n].requires.forEach(r => closure.add(r));
+        }
+        return Array.from(closure).filter(n => available[n]).map(name => ({ name, info: available[name] }));
+    }
+
+    private componentIncludeFlags(names: string[]): string[] {
+        if (names.length === 0) return [];
+        const flags: string[] = [];
+        if (this.manifest.sysrootIncludeDir) flags.push('-isystem', path.join(this.bundleDir, this.manifest.sysrootIncludeDir));
+        if (this.manifest.sdkconfigDir) flags.push(`-I${path.join(this.bundleDir, this.manifest.sdkconfigDir)}`);
+        for (const { info } of this.bundledComponents(names)) {
+            for (const d of info.includeDirs) flags.push(`-I${path.join(this.bundleDir, d)}`);
+        }
+        flags.push(...(this.manifest.defines ?? []));
+        return flags;
+    }
+
+    private componentArchives(names: string[]): string[] {
+        return this.bundledComponents(names).map(({ info }) => path.join(this.bundleDir, info.archive));
+    }
+
+    private async compilePackage(pkg: PackageForEsp32): Promise<void> {
         try {
             const archivePath = pkg.archiveFile;
             if (fs.existsSync(archivePath)) {
@@ -156,7 +198,10 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
             pkg.copyNativeFilesToDist();
             pkg.ensureBuildDirs();
 
-            const includeFlags = [pkg.resolvedDistDir, pkg.resolvedBuildDir, this.includeDir].map(d => `-I${d}`);
+            const includeFlags = [
+                ...[pkg.resolvedDistDir, pkg.resolvedBuildDir, this.includeDir].map(d => `-I${d}`),
+                ...this.componentIncludeFlags(pkg.espIdfComponents),
+            ];
             const objectFiles: string[] = [];
             for (const source of this.sourceFiles(pkg)) {
                 const object = pkg.objectFileOf(source);
@@ -181,9 +226,12 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
         try {
             const cwd = process.cwd();
             const elfPath = project.mainPackage.elfFile;
+            const componentNames = new Set<string>();
+            [project.mainPackage, ...project.usedDependencies].forEach(p => p.espIdfComponents.forEach(c => componentNames.add(c)));
             const archives = [
                 project.mainPackage.archiveFile,
                 ...project.usedDependencies.map(pkg => pkg.archiveFile).reverse(),
+                ...this.componentArchives(Array.from(componentNames)),
             ];
             const linkerscript = generateLinkerScript(
                 archives.map(ar => path.relative(cwd, ar)),

@@ -43,5 +43,10 @@ Open `http://localhost:8000/?selftest` to compile two fragments without a board
 | noble / node-ble transport | `WebBluetoothDevice` (`navigator.bluetooth`) |
 | `idf.py flash` / `esptool.py` | `flashRuntime()` with esptool-js |
 
+ESP-IDF components packaged in the bundle (`bscript board build-runtime <board> --components ...`)
+are available to inline C: their headers are mounted lazily into the toolchain's
+filesystem (fetched on demand with synchronous XHR in the worker) and their archives are
+fetched once at start-up and linked with every fragment.
+
 Limitations of the proof of concept: single-file fragments only (no `import`), no
 packages, no profiler-driven recompilation.

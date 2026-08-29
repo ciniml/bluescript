@@ -187,7 +187,14 @@ export class Esp32Toolchain implements BoardToolchain<PackageForEsp32, MemoryIma
     }
 }
 
-class EspIdfComponents {
+export type EspIdfComponentInfo = {
+    name: string,
+    dir: string,
+    archive: string,
+    includeDirs: string[],   // relative to dir
+};
+
+export class EspIdfComponents {
     public readonly commonIncludeDirs: string[];
     public readonly commonArchiveFiles: string[];
     public readonly ldFiles: string[];
@@ -211,6 +218,30 @@ class EspIdfComponents {
         this.commonIncludeDirs = this.getIncludeDirs(this.commonComponents);
         this.commonArchiveFiles = this.getArchiveFilePaths(this.commonComponents);
         this.ldFiles = this.getLdFiles(espDir, target);
+    }
+
+    // Resolve components for packaging in a runtime bundle: the requested
+    // components, the closure of their public requirements, and the common
+    // components that every program is linked against. Private requirements
+    // are left out (they only matter when building the component itself).
+    public resolveForBundle(rootComponentNames: string[]): EspIdfComponentInfo[] {
+        const names = [...rootComponentNames, ...this.commonComponents];
+        const visited = new Set<string>();
+        const result: EspIdfComponentInfo[] = [];
+        while (names.length > 0) {
+            const curr = names.shift()!;
+            if (visited.has(curr)) continue;
+            visited.add(curr);
+            const info = this.dependenciesInfo[curr];
+            if (info === undefined) {
+                throw new Error(`${curr} does not exists in ESP-IDF components.`);
+            }
+            names.push(...info.reqs);
+            if (info.file !== undefined && info.file !== '') {
+                result.push({ name: path.basename(info.dir), dir: info.dir, archive: info.file, includeDirs: info.include_dirs });
+            }
+        }
+        return result;
     }
 
     public getIncludeDirs(rootComponentNames: string[]) {

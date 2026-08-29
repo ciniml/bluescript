@@ -10,6 +10,8 @@ export type ToolRequest = {
   tool: ToolName;
   args: string[];
   files: { [path: string]: Uint8Array };
+  // Files fetched on demand (synchronous XHR inside the worker) when the tool opens them.
+  lazyFiles?: { [path: string]: string };   // path in MEMFS -> URL
   outputs: string[];
 };
 
@@ -73,6 +75,11 @@ async function run(req: ToolRequest): Promise<ToolResponse> {
   for (const [p, data] of Object.entries(req.files)) {
     mkdirTree(m.FS, p.slice(0, p.lastIndexOf('/')));
     m.FS.writeFile(p, data);
+  }
+  for (const [p, url] of Object.entries(req.lazyFiles ?? {})) {
+    const dir = p.slice(0, p.lastIndexOf('/'));
+    mkdirTree(m.FS, dir);
+    m.FS.createLazyFile(dir, p.slice(p.lastIndexOf('/') + 1), url, true, false);
   }
   for (const p of req.outputs) mkdirTree(m.FS, p.slice(0, p.lastIndexOf('/')));
   let code: number;
