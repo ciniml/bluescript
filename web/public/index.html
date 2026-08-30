@@ -26,6 +26,7 @@
 <p>Compiles BlueScript with a WebAssembly build of clang/lld, sends the machine code over Web Bluetooth, and flashes the runtime with esptool-js over Web Serial. Chrome or Edge required.</p>
 <div id="status">Loading...</div>
 <p>
+  <label>Board: <select id="board"></select></label>
   <button id="flash" disabled>Flash runtime (USB)</button>
   <button id="connect" disabled>Connect (Bluetooth)</button>
   <label title="Skip the check that the firmware on the board matches the one the compiler uses"><input type="checkbox" id="ignoreMismatch"> ignore firmware mismatch</label>

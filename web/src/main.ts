@@ -4,6 +4,7 @@ import { WebBluetoothDevice } from './ble';
 import { flashRuntime } from './flash';
 import type { MemoryImage } from '../../lang/src/compiler/board-toolchain/board-toolchain';
 import { installPackage, installedPackages, removePackage, readProjectDeps, writeProjectDeps } from './packages';
+import { listBundles, selectedBoard, bundleUrl, switchBoard } from './boards';
 
 const $ = (id: string) => document.getElementById(id)!;
 const out = $('output') as HTMLPreElement;
@@ -98,8 +99,17 @@ $('removeFile').onclick = () => {
 (async () => {
   setStatus('Loading toolchain (first time: about 70 MB)...');
   const t = performance.now();
+  const bundles = await listBundles();
+  const entry = selectedBoard(bundles);
+  const select = $('board') as HTMLSelectElement;
+  for (const b of bundles) {
+    const o = document.createElement('option');
+    o.value = b.board; o.textContent = `${b.board} (${b.version || 'runtime'})`; o.selected = b.board === entry.board;
+    select.appendChild(o);
+  }
+  select.onchange = () => switchBoard(select.value);
   await tools.warmup(['clang', 'lld', 'llvm-ar']);
-  await compiler.load('bundle/', 'toolchain/');
+  await compiler.load(bundleUrl(entry), 'toolchain/');
   loadProjectFiles();
   editor.value = compiler.readSource(currentFile);
   renderFileList();
@@ -233,6 +243,8 @@ async function selfTest() {
   }
   const fragments = ['console.log(fib(10));',
                      'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));',
+                     ...(compiler.board === 'm5stack-atoms3' ? [
+                       'm5.begin(); m5.display.clear(0x000000); m5.display.print(m5.boardName()); m5.update(); if (m5.btn.wasPressed()) m5.led.set(0, 255, 0);'] : []),
                      ...(compiler.componentNames.length > 0 ? [
                        'code`#include "driver/gpio.h"`\nfunction pullup(pin: integer) { code`gpio_set_pull_mode((gpio_num_t)${pin}, GPIO_PULLUP_ONLY);` }\npullup(2); console.log("pullup");'] : [])];
   for (const src of fragments) {

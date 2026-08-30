@@ -9,15 +9,20 @@ import { ToolchainClient } from './toolchain-client';
 import { WebBluetoothDevice } from './ble';
 import { flashRuntime } from './flash';
 import { BrowserReplClient } from './browser-repl-client';
+import { listBundles, selectedBoard, bundleUrl, switchBoard, BundleEntry } from './boards';
+import { Select } from 'antd';
 
 const tools = new ToolchainClient();
 const compiler = new BrowserCompiler(tools);
 const client = new BrowserReplClient(compiler);
 setReplClientFactory(() => client);
 
+let bundles: BundleEntry[] = [];
 const ready = (async () => {
+  bundles = await listBundles();
+  const entry = selectedBoard(bundles);
   await tools.warmup(['clang', 'lld', 'llvm-ar']);
-  await compiler.load('bundle/', 'toolchain/');
+  await compiler.load(bundleUrl(entry), 'toolchain/');
   compiler.writeSource('index.bs', '');
 })();
 
@@ -76,6 +81,9 @@ function Toolbar() {
   return (
     <Space size="middle" wrap>
       {contextHolder}
+      <Select size="small" style={{ minWidth: 180 }} disabled={!loaded} value={loaded ? compiler.board : undefined} placeholder="board"
+        options={bundles.map(b => ({ value: b.board, label: `${b.board} (${b.version || 'runtime'})` }))}
+        onChange={(v) => switchBoard(v)} />
       <Button size="small" disabled={!loaded} onClick={flash}>Flash runtime (USB)</Button>
       <Button size="small" type="primary" disabled={!loaded || connected} onClick={connect}>Connect (Bluetooth)</Button>
       <Button size="small" disabled={!connected} onClick={reset}>Reset session</Button>

@@ -14,6 +14,10 @@ from `localhost` or HTTPS.
 
 ## Pages
 
+Both pages offer every runtime bundle the site was built with (`bundles/index.json`,
+one directory per board such as `esp32s3` or `m5stack-atoms3`); pick the board in
+the toolbar or with `?board=<name>`.
+
 * `index.html` — project editor (files, packages) plus a REPL box.
 * `notebook.html` — the BlueScript notebook UI (`notebook/src`, React) with the
   in-browser backend: cells are compiled in the page and run over Web Bluetooth.
@@ -32,15 +36,15 @@ the ESP32-S3 runtime bundle are on the
 ```bash
 npm install
 WASM_TOOLCHAIN_DIR=<browser build of the wasm toolchain> \
-RUNTIME_BUNDLE_DIR=../microcontroller/ports/esp32/bundle-esp32s3 \
-npm run serve          # http://localhost:8000/
+RUNTIME_BUNDLE_DIRS=../microcontroller/ports/esp32/bundle-esp32s3:../microcontroller/ports/esp32/bundle-m5stack-atoms3 \
+npm run serve          # http://localhost:8000/  (RUNTIME_BUNDLE_DIRS defaults to every bundle-* under ports/esp32)
 ```
 
 * `WASM_TOOLCHAIN_DIR` must contain `bin/{clang,lld,llvm-ar}.{js,wasm}` linked with
   `-sENVIRONMENT=web,worker -sMODULARIZE=1 -sEXPORT_NAME=createTool` (see
   `tools/wasm-toolchain/build.sh`; the Node build uses NODEFS and does not run in a browser)
   and `lib/clang/<ver>/include`.
-* `RUNTIME_BUNDLE_DIR` is a bundle produced by `bscript board build-runtime <board>`.
+* `RUNTIME_BUNDLE_DIRS` lists bundles produced by `bscript board build-runtime <board>` (colon-separated).
 
 `npm run build` writes a static site to `dist/` (about 82 MB, of which 70 MB are the
 wasm modules; they are cached by the browser after the first load).

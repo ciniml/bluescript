@@ -2,7 +2,8 @@
 // (WebAssembly toolchain and runtime bundle) into dist/.
 //
 //   WASM_TOOLCHAIN_DIR  directory with bin/{clang,lld,llvm-ar}.{js,wasm} and lib/clang/<ver>/include
-//   RUNTIME_BUNDLE_DIR  runtime bundle created by `bscript board build-runtime <board>`
+//   RUNTIME_BUNDLE_DIRS colon-separated runtime bundles created by `bscript board build-runtime <board>`
+//                       (default: every bundle-* directory under microcontroller/ports/esp32)
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,7 +14,13 @@ const dist = path.join(root, 'dist');
 const serve = process.argv.includes('--serve');
 
 const toolchainDir = process.env.WASM_TOOLCHAIN_DIR ?? path.join(root, '../wasm-toolchain');
-const bundleDir = process.env.RUNTIME_BUNDLE_DIR ?? path.join(root, '../microcontroller/ports/esp32/bundle-esp32s3');
+const portDir = path.join(root, '../microcontroller/ports/esp32');
+function bundleDirs() {
+  if (process.env.RUNTIME_BUNDLE_DIRS) return process.env.RUNTIME_BUNDLE_DIRS.split(':').filter(Boolean);
+  if (process.env.RUNTIME_BUNDLE_DIR) return [process.env.RUNTIME_BUNDLE_DIR];
+  if (!fs.existsSync(portDir)) return [];
+  return fs.readdirSync(portDir).filter(d => d.startsWith('bundle-') && fs.existsSync(path.join(portDir, d, 'bundle.json'))).map(d => path.join(portDir, d));
+}
 
 function copyAssets() {
   fs.mkdirSync(dist, { recursive: true });
@@ -33,10 +40,19 @@ function copyAssets() {
   const headers = fs.readdirSync(resDir).filter(f => headerPattern.test(f));
   for (const h of headers) fs.copyFileSync(path.join(resDir, h), path.join(tcOut, 'include', h));
   fs.writeFileSync(path.join(tcOut, 'include', 'files.json'), JSON.stringify(headers));
-  // Runtime bundle.
-  const bOut = path.join(dist, 'bundle');
+  // Runtime bundles, one per board, listed in bundles/index.json.
+  const bOut = path.join(dist, 'bundles');
   fs.rmSync(bOut, { recursive: true, force: true });
-  fs.cpSync(bundleDir, bOut, { recursive: true });
+  const index = [];
+  for (const dir of bundleDirs()) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'bundle.json'), 'utf-8'));
+    const board = manifest.board ?? manifest.target;
+    fs.cpSync(dir, path.join(bOut, board), { recursive: true });
+    index.push({ board, target: manifest.target, version: manifest.firmware?.version ?? '', buildTime: manifest.firmware?.buildTime ?? '' });
+  }
+  fs.mkdirSync(bOut, { recursive: true });
+  fs.writeFileSync(path.join(bOut, 'index.json'), JSON.stringify(index, null, 2));
+  console.log(`[assets] bundles: ${index.map(b => b.board).join(', ') || 'none'}`);
 }
 
 const common = {
@@ -68,12 +84,10 @@ if (serve) {
   // deleted and recreated by build-runtime, which breaks a recursive watcher.
   // Debounce so that the copy happens once the regeneration has settled.
   let timer;
-  fs.watch(path.dirname(bundleDir), () => {
+  if (fs.existsSync(portDir)) fs.watch(portDir, () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      try {
-        if (fs.existsSync(path.join(bundleDir, 'bundle.json'))) { copyAssets(); console.log('[assets] runtime bundle updated'); }
-      } catch (e) { console.error('[assets] update failed:', e.message); }
+      try { copyAssets(); console.log('[assets] runtime bundles updated'); } catch (e) { console.error('[assets] update failed:', e.message); }
     }, 3000);
   });
   await ctxMain.watch();
