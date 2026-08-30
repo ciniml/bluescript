@@ -3,8 +3,9 @@ import inquirer from 'inquirer';
 import * as path from 'path';
 import * as os from 'os';
 import { SerialPort } from 'serialport'
-import { BoardName, Esp32FamilyBoardName, isEsp32FamilyBoard } from "../../config/board-utils";
-import { ESP32_TARGET_BUILD_DIRS } from "@bscript/lang";
+import { BoardName, Esp32FamilyBoardName, isEsp32FamilyBoard, esp32TargetOf } from "../../config/board-utils";
+import { esp32BuildDirName } from "@bscript/lang";
+import * as fs from '../../core/fs';
 import { logger, runStep } from "../../core/logger";
 import { execShell } from '../../core/command-exec';
 import chalk from "chalk";
@@ -52,11 +53,21 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
         if (this.boardName === 'esp32') {
             return [];
         }
-        return [
-            '-B', ESP32_TARGET_BUILD_DIRS[this.boardName],
-            '-D', `IDF_TARGET=${this.boardName}`,
+        const args = [
+            '-B', esp32BuildDirName(this.boardName),
+            '-D', `IDF_TARGET=${esp32TargetOf(this.boardName)}`,
             '-D', `SDKCONFIG=sdkconfig.${this.boardName}`,
         ];
+        if (this.boardName !== esp32TargetOf(this.boardName)) {
+            // A board variant: extra components and settings under boards/<board>/.
+            args.push('-D', `BOARD=${this.boardName}`);
+            const boardDefaults = `boards/${this.boardName}/sdkconfig.defaults`;
+            if (fs.exists(path.join(this.getEspPortDir(), boardDefaults))) {
+                // Quoted: the list separator would otherwise end the shell command.
+                args.push('-D', `"SDKCONFIG_DEFAULTS=sdkconfig.defaults;${boardDefaults}"`);
+            }
+        }
+        return args;
     }
 
     isSetup(): boolean {
@@ -107,7 +118,7 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
         await this.runIdfPy(
             [...this.targetArgs, '-D', `DEVICE_NAME=${deviceName}`, 'build'],
         );
-        return path.join(this.getEspPortDir(), ESP32_TARGET_BUILD_DIRS[this.boardName]);
+        return path.join(this.getEspPortDir(), esp32BuildDirName(this.boardName));
     }
 
     // Collect the build artifacts into a runtime bundle for `setup-lite`.
@@ -125,7 +136,7 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     private async runEsptool(args: string[], port: string) {
         const python = await this.findPythonWithEsptool();
         await execShell(
-            `${python} -m esptool --chip ${this.boardName} -p ${port} ${args.join(' ')}`,
+            `${python} -m esptool --chip ${esp32TargetOf(this.boardName)} -p ${port} ${args.join(' ')}`,
             { cwd: this.bundleFlashDir },
         );
     }

@@ -3,17 +3,18 @@ import * as fs from '../../core/fs';
 import { GLOBAL_SETTINGS } from "../../config/constants";
 import { simpleExec, execShell, execWithLog } from '../../core/command-exec';
 import { BoardEnv, isPackageInstalledOnUnix, isPackageInstalledOnWindows } from './common-env';
-import { Esp32FamilyBoardName } from '../../config/board-utils';
+import { Esp32FamilyBoardName, esp32TargetOf } from '../../config/board-utils';
 
 const XTENSA_TOOLCHAIN_DIR = 'xtensa-esp-elf';
 
 export abstract class Esp32Env extends BoardEnv {
-    // Chip target passed to ESP-IDF (`esp32`, `esp32s3`, ...).
-    readonly target: Esp32FamilyBoardName;
+    readonly board: Esp32FamilyBoardName;
+    // Chip target passed to ESP-IDF (`esp32`, `esp32s3`).
+    get target() { return esp32TargetOf(this.board); }
 
-    constructor(target: Esp32FamilyBoardName = 'esp32') {
+    constructor(board: Esp32FamilyBoardName = 'esp32') {
         super();
-        this.target = target;
+        this.board = board;
     }
 
     // The ESP-IDF installation is shared by all boards of the ESP32 family.

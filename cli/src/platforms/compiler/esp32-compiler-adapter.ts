@@ -1,8 +1,8 @@
 import { GlobalConfigHandler, Esp32BoardConfig, isEsp32IdfBoardConfig } from "../../config/global-config";
 import { ProjectConfigHandler, PROJECT_DEFAULT_PATHS } from "../../config/project-config";
-import { Esp32FamilyBoardName } from "../../config/board-utils";
+import { Esp32FamilyBoardName, esp32TargetOf } from "../../config/board-utils";
 import {
-    CompilerSession, MemoryImage, MemoryLayout,
+    CompilerSession, MemoryImage, MemoryLayout, Esp32Target,
     Esp32Toolchain, Esp32ToolchainConfig, Project, PackageForEsp32
 } from "@bscript/lang";
 import { CompilerAdapter, CompileContext } from "./compiler-adapter";
@@ -11,7 +11,7 @@ import * as path from 'path';
 
 // Memory layouts used only for `project check` (no device is connected).
 // The real layout is obtained from the device at runtime.
-export const DUMMY_MEMORY_LAYOUTS: Record<Esp32FamilyBoardName, MemoryLayout> = {
+export const DUMMY_MEMORY_LAYOUTS: Record<Esp32Target, MemoryLayout> = {
     esp32: {
         dummy: true,
         iram: { address: 0x40096c34, size: 1000000 },
@@ -47,7 +47,7 @@ export class Esp32CompilerAdapter implements CompilerAdapter {
     }
 
     async buildForCheck(): Promise<MemoryImage> {
-        return this.buildProject({ memoryLayout: DUMMY_MEMORY_LAYOUTS[this.boardName] });
+        return this.buildProject({ memoryLayout: DUMMY_MEMORY_LAYOUTS[esp32TargetOf(this.boardName)] });
     }
 
     async buildProject(context?: CompileContext): Promise<MemoryImage> {
@@ -79,7 +79,8 @@ export class Esp32CompilerAdapter implements CompilerAdapter {
         }
         return {
             runtimeDir,
-            target: this.boardName,
+            target: esp32TargetOf(this.boardName),
+            board: this.boardName,
             compilerToolchain: this.boardConfig.toolchain,
             espDir: this.boardConfig.rootDir,
         };

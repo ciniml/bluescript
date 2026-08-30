@@ -1,0 +1,10 @@
+# M5Stack AtomS3 family: 8 MB flash, larger app partition (M5Unified + M5GFX)
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="boards/m5stack-atoms3/partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="boards/m5stack-atoms3/partitions.csv"
+# AtomS3R has 8 MB PSRAM (harmless on the others: init is skipped when absent)
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y

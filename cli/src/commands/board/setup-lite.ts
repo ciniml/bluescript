@@ -139,8 +139,9 @@ export class SetupLiteHandler extends CommandHandlerWithUpdateCheck {
             throw new Error(`Runtime bundle not found: ${this.bundleSourceDir}`);
         }
         const manifest = readRuntimeBundleManifest(this.bundleSourceDir);
-        if (manifest.target !== this.boardName) {
-            throw new Error(`The runtime bundle is for ${manifest.target}, not for ${this.boardName}.`);
+        const bundleBoard = manifest.board ?? manifest.target;
+        if (bundleBoard !== this.boardName) {
+            throw new Error(`The runtime bundle is for ${bundleBoard}, not for ${this.boardName}.`);
         }
         if (manifest.vmVersion !== GLOBAL_SETTINGS.VM_VERSION) {
             throw new Error(

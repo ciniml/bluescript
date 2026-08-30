@@ -160,7 +160,7 @@ bscript board setup <board-name>
 | Board | macOS | Windows | Linux |
 | :--- | :--- | :--- | :--- |
 | `host` | `cc`, `make` | MinGW-w64: `gcc`, `mingw32-make` | `gcc`, `make` |
-| `esp32`, `esp32s3` | Homebrew, Git, Python 3, `make` | Git, Python 3, `make` or `mingw32-make`. See [Windows prerequisites](../tutorial/get-started/setup-environment-windows.md). | None (Requirements are automatically installed by setup command.) |
+| `esp32`, `esp32s3`, `m5stack-atoms3` | Homebrew, Git, Python 3, `make` | Git, Python 3, `make` or `mingw32-make`. See [Windows prerequisites](../tutorial/get-started/setup-environment-windows.md). | None (Requirements are automatically installed by setup command.) |
 
 For `host`, see [Try Without Microcontroller](../tutorial/guides/try-without-microcontroller.md).
 
@@ -274,7 +274,7 @@ bscript board reboot esp32s3 -d my-device
 
 ### `bscript board list`
 
-Lists all board architectures currently supported by the installed CLI version (`esp32`, `esp32s3`, and `host`).
+Lists all board architectures currently supported by the installed CLI version (`esp32`, `esp32s3`, `m5stack-atoms3`, and `host`).
 
 ```bash
 bscript board list

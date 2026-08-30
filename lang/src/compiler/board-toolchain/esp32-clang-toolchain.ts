@@ -31,6 +31,8 @@ export type RuntimeBundleComponent = {
 
 export type RuntimeBundleManifest = {
     target: Esp32Target,
+    // Board variant the firmware was built for (defaults to the target).
+    board?: string,
     vmVersion: string,
     // Linker scripts under rom-ld/, in the order they must be included.
     ldFiles: string[],

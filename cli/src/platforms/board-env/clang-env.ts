@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from '../../core/fs';
 import { GLOBAL_SETTINGS } from '../../config/constants';
 import { execWithLog } from '../../core/command-exec';
-import { Esp32FamilyBoardName } from '../../config/board-utils';
+import { Esp32FamilyBoardName, esp32TargetOf } from '../../config/board-utils';
 
 // Espressif LLVM release used by `bscript board setup-lite`.
 // https://github.com/espressif/llvm-project/releases
@@ -43,7 +43,7 @@ export class ClangEnv {
 
     // GNU ld for xtensa is bundled with esp-clang. Its name differs between releases.
     ldFile(board: Esp32FamilyBoardName): string {
-        const candidates = ['xtensa-esp-elf-ld', `xtensa-${board}-elf-ld`, 'ld.lld'].map(n => path.join(this.clangBinDir, this.exe(n)));
+        const candidates = ['xtensa-esp-elf-ld', `xtensa-${esp32TargetOf(board)}-elf-ld`, 'ld.lld'].map(n => path.join(this.clangBinDir, this.exe(n)));
         const found = candidates.find(c => fs.exists(c));
         if (!found) {
             throw new Error(`Cannot find a linker for ${board} in ${this.clangBinDir}.`);

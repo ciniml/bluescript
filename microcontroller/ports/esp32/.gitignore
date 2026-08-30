@@ -1,2 +1,4 @@
 sdkconfig.esp32s3
 bundle-*
+sdkconfig.m5stack-atoms3
+managed_components/

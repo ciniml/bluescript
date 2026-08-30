@@ -2,7 +2,7 @@ export { ErrorLog as CompileError } from './transpiler/utils';
 export { CompilerSession } from './compiler/compiler-session';
 export { Project } from './compiler/project';
 export { Package, PackageForEsp32, PackageForHostUnix, PackageForHostWindows } from './compiler/package';
-export { Esp32Toolchain, Esp32ToolchainConfig, Esp32Target, ESP32_TARGET_BUILD_DIRS, EspIdfComponents, EspIdfComponentInfo } from './compiler/board-toolchain/esp32-toolchain';
+export { Esp32Toolchain, Esp32ToolchainConfig, Esp32Target, ESP32_TARGET_BUILD_DIRS, esp32BuildDirName, esp32StdModulePath, EspIdfComponents, EspIdfComponentInfo } from './compiler/board-toolchain/esp32-toolchain';
 export { Esp32ClangToolchain, Esp32ClangToolchainConfig, RuntimeBundleManifest, RUNTIME_BUNDLE_MANIFEST, readRuntimeBundleManifest, RuntimeBundleComponent } from './compiler/board-toolchain/esp32-clang-toolchain';
 export { FileSystem, NodeFileSystem, MemoryFileSystem, nodeFileSystem, DirEntry } from './compiler/file-system';
 export { ToolRunner, NodeToolRunner, nodeToolRunner } from './compiler/tool-runner';

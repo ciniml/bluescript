@@ -29,7 +29,7 @@ function Toolbar() {
   const [msg, contextHolder] = message.useMessage();
 
   useEffect(() => {
-    ready.then(() => { setLoaded(true); setStatus(`Ready (${compiler.target}). Flash the runtime if needed, then connect.`); })
+    ready.then(() => { setLoaded(true); setStatus(`Ready (${compiler.board}). Flash the runtime if needed, then connect.`); })
          .catch(e => setStatus('Failed to load: ' + e));
   }, []);
 

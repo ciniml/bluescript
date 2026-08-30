@@ -1,0 +1,5 @@
+## Board support for M5Stack AtomS3 / AtomS3 Lite / AtomS3R (one firmware, board detected at runtime).
+dependencies:
+  idf: ">=5.1"
+  m5stack/m5unified: "^0.2.7"
+  espressif/led_strip: "^3.0.0"

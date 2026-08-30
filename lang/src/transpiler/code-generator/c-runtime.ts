@@ -175,6 +175,7 @@ export function typeConversion(from: StaticType | undefined, to: StaticType | un
             if (isSubtype(from, to))
               return '('
             else {
+              env.useClass(to)
               const info = classObjectNameInC(to.name())
               return `safe_value_to_value(false, &${info}, `
             }
@@ -213,6 +214,7 @@ function typeConversionToUnion(from: StaticType, to: UnionType, env: VariableEnv
           return `safe_value_to_value(true, &${env.useArrayType(objType)[0]}.clazz, `
       }
       else if (objType instanceof InstanceType) {
+        env.useClass(objType)
         const info = classObjectNameInC(objType.name())
         return `safe_value_to_value(true, &${info}, `
       }

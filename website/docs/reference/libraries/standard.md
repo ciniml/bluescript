@@ -21,6 +21,26 @@ Currently, the following libraries are available for stable use.
     *   `gpio.getLevel(pin: integer): integer`
     *   Example: `gpio.setDirection(2, 1); gpio.setLevel(2, 1);`
 
+### Built-in on `m5stack-atoms3` (M5Stack AtomS3 / AtomS3 Lite / AtomS3R)
+The board's runtime embeds [M5Unified](https://github.com/m5stack/M5Unified); the board model is detected at
+start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
+*   `m5.begin()` — initialize (call once); `m5.update()` — poll the button (call in loops); `m5.boardName(): string`
+*   `m5.display` — `available()`, `width()`, `height()`, `clear(color)`, `setBrightness(0..255)`, `setCursor(x, y)`,
+    `setTextSize(n)`, `setTextColor(color, background)`, `print(text)`, `drawPixel(x, y, color)`,
+    `fillRect(x, y, w, h, color)`, `drawRect(...)`, `drawLine(x0, y0, x1, y1, color)`, `fillCircle(x, y, r, color)`
+    (no-ops on AtomS3 Lite, which has no display)
+*   `m5.btn` — `isPressed()`, `wasPressed()`, `wasReleased()`, `pressedFor(ms)` (the front button; call `m5.update()` first)
+*   `m5.led` — `available()`, `set(r, g, b)`, `off()` (the RGB LED of AtomS3 Lite; no-op on the others)
+*   `m5.imu` — `available()`, `accelX()`, `accelY()`, `accelZ()` in G (AtomS3 / AtomS3R)
+*   Example:
+    ```ts
+    m5.begin();
+    m5.display.clear(0x000000);
+    m5.display.setTextSize(2);
+    m5.display.print("Hello " + m5.boardName());
+    while (true) { m5.update(); if (m5.btn.wasPressed()) m5.led.set(0, 255, 0); }
+    ```
+
 ### Digital I/O
 *   **GPIO (General Purpose Input/Output)**
     *   Control pins, read digital states, and handle interrupts.

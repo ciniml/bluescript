@@ -241,6 +241,14 @@ export class GlobalVariableNameTable extends GlobalNameTable<VariableInfo> {
   // getArrayTypes() returns all array types.
   getArrayTypes() { return this.arrayTypes }
 
+  // Classes whose class objects are referenced by the generated code (e.g. for
+  // type checks when accessing a property of a class type), so that the code
+  // generator can declare the ones that are not defined in this module.
+  private usedClasses = new Set<InstanceType>()
+
+  useClass(type: InstanceType) { this.usedClasses.add(type) }
+  forEachUsedClass(f: (type: InstanceType) => void) { this.usedClasses.forEach(f) }
+
   // useArrayType() returns [clazz_name_in_C, array_type, whether_it_must_be_declared_in_C].
   // The third element is false when the class type for the array is imported by 'extern'.
   useArrayType(type: ArrayType) {
@@ -347,6 +355,18 @@ export class VariableEnv {
         env = env.parent
 
     throw new Error('internal error: cannot find a GlobalVariableNameTable for useArrayType()')
+  }
+
+  // Record that the generated code references the class object of `type`.
+  useClass(type: InstanceType) {
+    let env: VariableEnv | null = this
+    while (env !== null)
+      if (env.table instanceof GlobalVariableNameTable) {
+        env.table.useClass(type)
+        return
+      }
+      else
+        env = env.parent
   }
 }
 

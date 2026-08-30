@@ -1,6 +1,7 @@
 import { handleSetupCommand } from '../../../src/commands/board/setup';
 import { handleRemoveCommand } from '../../../src/commands/board/remove';
 import { handleFlashRuntimeCommand } from '../../../src/commands/board/flash-runtime';
+import { handleBuildRuntimeCommand } from '../../../src/commands/board/build-runtime';
 import os from 'os';
 import * as path from 'path';
 import * as fs from '../../../src/core/fs';
@@ -210,5 +211,40 @@ describe('board build-runtime', () => {
 
         expect(mockedLogger.warn).toHaveBeenCalledWith(expect.stringContaining('esp32s3 is not set up'));
         expect(mockedExecShell).not.toHaveBeenCalled();
+    });
+});
+
+describe('m5stack-atoms3 board (board variant of esp32s3)', () => {
+    const { esp32TargetOf } = require('../../../src/config/board-utils');
+    beforeAll(() => { spyGlobalSettings('atoms3'); });
+    beforeEach(() => { deleteGlobalEnv(); jest.clearAllMocks(); });
+    afterAll(() => { deleteGlobalEnv(); });
+
+    it('maps to the esp32s3 chip target', () => {
+        expect(esp32TargetOf('m5stack-atoms3')).toBe('esp32s3');
+        expect(esp32TargetOf('esp32s3')).toBe('esp32s3');
+        expect(esp32TargetOf('esp32')).toBe('esp32');
+    });
+
+    it('builds the runtime with its own build directory, sdkconfig and BOARD variant', async () => {
+        const board = {
+            toolchainType: 'esp-idf', idfVersion: new Esp32UnixEnv().idfVersion, rootDir: getTestEspRootDir(), exportFile: getTestEspIdfExportFile(),
+            toolchain: { gcc: 'gcc', ar: 'ar', ld: 'ld', make: 'make', python: 'python' },
+        };
+        setupGlobalEnv({ version: DUMMY_VM_VERSION, runtimeDir: getTestRuntimeDir(), boards: { 'm5stack-atoms3': board } });
+        fs.makeDir(getTestRuntimeDir());
+        mockedExecShell.mockImplementation(async () => {});
+
+        await handleBuildRuntimeCommand('m5stack-atoms3', { bundle: false });
+
+        const [cmd] = mockedExecShell.mock.calls[0];
+        expect(cmd).toContain('-B build-m5stack-atoms3 -D IDF_TARGET=esp32s3 -D SDKCONFIG=sdkconfig.m5stack-atoms3 -D BOARD=m5stack-atoms3');
+        expect(mockedLogger.error).not.toHaveBeenCalled();
+    });
+
+    it('uses the esp32s3 toolchain binaries when setting up', async () => {
+        const env = new Esp32UnixEnv('m5stack-atoms3');
+        expect(env.target).toBe('esp32s3');
+        expect(env.xtensaGccFileName).toBe('xtensa-esp32s3-elf-gcc');
     });
 });

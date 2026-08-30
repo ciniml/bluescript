@@ -20,7 +20,8 @@ export { BUNDLE_DIR, PROJECT_DIR, PROJECT_NAME };
 
 export type BundleInfo = {
   baseUrl: string;
-  target: string;
+  target: string;      // chip (esp32, esp32s3)
+  board: string;       // board variant (e.g. m5stack-atoms3)
   firmware?: EspAppDesc;
   components: string[];
   files: string[];
@@ -44,7 +45,7 @@ export async function loadBundle(baseUrl: string, fs: MemoryFileSystem): Promise
     const m = line.trim().match(/^(0x[0-9a-fA-F]+)\s+(\S+)$/);
     if (m) flash.push({ address: parseInt(m[1], 16), name: m[2], data: await bin(`flash/${m[2]}`) });
   }
-  return { baseUrl, target: manifest.target, firmware: manifest.firmware, components: Object.keys(manifest.components ?? {}), files, flash };
+  return { baseUrl, target: manifest.target, board: manifest.board ?? manifest.target, firmware: manifest.firmware, components: Object.keys(manifest.components ?? {}), files, flash };
 }
 
 // ToolRunner that ships the memory filesystem to the worker and merges the outputs back.
@@ -113,6 +114,7 @@ export class BrowserCompiler {
   }
 
   get target() { return this.bundle!.target; }
+  get board() { return this.bundle!.board; }
   get firmwareDesc() { return this.bundle?.firmware; }
   get flashFiles() { return this.bundle!.flash; }
   get componentNames() { return this.bundle!.components; }

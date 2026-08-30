@@ -63,6 +63,7 @@ const hostBoardSchema = z.object({
 const boardConfigSchema = z.object({
     esp32: esp32BoardSchema.optional(),
     esp32s3: esp32BoardSchema.optional(),
+    'm5stack-atoms3': esp32BoardSchema.optional(),
     host: hostBoardSchema.optional(),
 });
 

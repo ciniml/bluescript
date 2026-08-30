@@ -1,6 +1,13 @@
-idf_component_register(SRCS "std-module.c" "main.c" "ble.c" "memory.c" "utils.c"
+# The built-in module differs per board (boards/<BOARD>/std-module.c adds the board's API).
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../boards/${BOARD}/std-module.c")
+    set(STD_MODULE_SRC "../boards/${BOARD}/std-module.c")
+else()
+    set(STD_MODULE_SRC "std-module.c")
+endif()
+
+idf_component_register(SRCS ${STD_MODULE_SRC} "main.c" "ble.c" "memory.c" "utils.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES core driver esp_partition bt nvs_flash esp_app_format
+                    REQUIRES core driver esp_partition bt nvs_flash esp_app_format board
                     LDFRAGMENTS linker.lf
                     WHOLE_ARCHIVE)
 

@@ -98,10 +98,12 @@ export class CodeGenerator extends visitor.NodeVisitor<VariableEnv> {
     this.signatures += cr.externClassDef(objectType)
     this.signatures += '\n'
     const externalRoots: { [key: string]: number } = {}
+    const declaredExternClasses = new Set<ObjectType>([objectType])
     env2.forEachExternalVariable((info, name, type, index) => {
       if (name === undefined) {
         // a type name only
         if (type instanceof ObjectType) {
+          declaredExternClasses.add(type)
           this.signatures += cr.externClassDef(type)
           if (type instanceof InstanceType)
             this.signatures += cr.externNew(type)
@@ -123,6 +125,16 @@ export class CodeGenerator extends visitor.NodeVisitor<VariableEnv> {
       else
         this.signatures += `extern ${cr.typeToCType(type, name)};\n`
     })
+
+    // Classes referenced only through property types (e.g. `m5.display`) are
+    // neither declared here nor listed as external names: declare them too.
+    if (env2.table instanceof GlobalVariableNameTable)
+      env2.table.forEachUsedClass(type => {
+        if (!this.localClasses.has(type) && !declaredExternClasses.has(type)) {
+          declaredExternClasses.add(type)
+          this.signatures += cr.externClassDef(type) + '\n'
+        }
+      })
 
     this.externalStaticProperties.forEach((type, name) => {
       if (typeof type === 'number') {

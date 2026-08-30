@@ -1,6 +1,6 @@
 import { GlobalConfigHandler, Esp32ClangBoardConfig, Esp32WasmBoardConfig, isEsp32BundleBoardConfig } from "../../config/global-config";
 import { ProjectConfigHandler } from "../../config/project-config";
-import { Esp32FamilyBoardName } from "../../config/board-utils";
+import { Esp32FamilyBoardName, esp32TargetOf } from "../../config/board-utils";
 import {
     CompilerSession, MemoryImage,
     Esp32ClangToolchain, Esp32ClangToolchainConfig, Project, PackageForEsp32
@@ -28,7 +28,7 @@ export class Esp32ClangCompilerAdapter implements CompilerAdapter {
     }
 
     async buildForCheck(): Promise<MemoryImage> {
-        return this.buildProject({ memoryLayout: DUMMY_MEMORY_LAYOUTS[this.boardName] });
+        return this.buildProject({ memoryLayout: DUMMY_MEMORY_LAYOUTS[esp32TargetOf(this.boardName)] });
     }
 
     async buildProject(context?: CompileContext): Promise<MemoryImage> {
@@ -55,7 +55,7 @@ export class Esp32ClangCompilerAdapter implements CompilerAdapter {
     private getCompilerConfig(): Esp32ClangToolchainConfig {
         const config: Esp32ClangToolchainConfig = {
             bundleDir: this.boardConfig.bundleDir,
-            target: this.boardName,
+            target: esp32TargetOf(this.boardName),
             toolchain: this.boardConfig.toolchain,
         };
         if (this.boardConfig.toolchainType === 'wasm') {

@@ -10,17 +10,33 @@ import generateLinkerScript from "./tools/linker-script";
 import { assertFirmwareMatches, parseEspAppDesc, EspAppDesc } from "./tools/firmware-id";
 
 
+// Chip targets (compiler -mcpu, ROM linker scripts, esptool --chip).
 export type Esp32Target = 'esp32' | 'esp32s3';
 
+// A board is a firmware variant of the ESP32 port: the chip target plus, for
+// boards such as 'm5stack-atoms3', extra components and built-in module
+// (microcontroller/ports/esp32/boards/<board>/). Each board has its own build
+// directory and sdkconfig.
+export function esp32BuildDirName(board: string): string {
+    return board === 'esp32' ? 'build' : `build-${board}`;
+}
+
+// Path of the board's built-in module relative to ports/esp32.
+export function esp32StdModulePath(board: string, target: Esp32Target): string {
+    return board === target ? 'std-module.bs' : `boards/${board}/std-module.bs`;
+}
+
 export const ESP32_TARGET_BUILD_DIRS: Record<Esp32Target, string> = {
-    esp32: 'build',
-    esp32s3: 'build-esp32s3',
+    esp32: esp32BuildDirName('esp32'),
+    esp32s3: esp32BuildDirName('esp32s3'),
 };
 
 export type Esp32ToolchainConfig = {
     runtimeDir: string,
     // Chip target of the runtime firmware. Defaults to 'esp32'.
     target?: Esp32Target,
+    // Board variant (defaults to the chip target).
+    board?: string,
     compilerToolchain: {
         gcc: string,
         ar: string,
@@ -45,7 +61,8 @@ export class Esp32Toolchain implements BoardToolchain<PackageForEsp32, MemoryIma
 `;
     }
     get target(): Esp32Target { return this.config.target ?? 'esp32'; }
-    get runtimeBuildDir() { return path.join(this.config.runtimeDir, 'ports/esp32', ESP32_TARGET_BUILD_DIRS[this.target]); }
+    get board(): string { return this.config.board ?? this.target; }
+    get runtimeBuildDir() { return path.join(this.config.runtimeDir, 'ports/esp32', esp32BuildDirName(this.board)); }
     get runtimeElf() { return path.join(this.runtimeBuildDir, 'bluescript.elf'); }
     get runtimeBin() { return path.join(this.runtimeBuildDir, 'bluescript.bin'); }
 
@@ -58,7 +75,7 @@ export class Esp32Toolchain implements BoardToolchain<PackageForEsp32, MemoryIma
         }
     }
     get cRuntimeH() { return path.join(this.config.runtimeDir, 'core/include/c-runtime.h'); }
-    get builtinModulePath() { return path.join(this.config.runtimeDir, 'ports/esp32/std-module.bs'); }
+    get builtinModulePath() { return path.join(this.config.runtimeDir, 'ports/esp32', esp32StdModulePath(this.board, this.target)); }
     get ld() { return this.config.compilerToolchain.ld; }
     get make() { return this.config.compilerToolchain.make; }
 

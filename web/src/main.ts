@@ -104,7 +104,7 @@ $('removeFile').onclick = () => {
   editor.value = compiler.readSource(currentFile);
   renderFileList();
   renderPackageList();
-  setStatus(`Ready (${compiler.target}, toolchain loaded in ${((performance.now() - t) / 1000).toFixed(1)} s). Connect a board.`);
+  setStatus(`Ready (${compiler.board}, toolchain loaded in ${((performance.now() - t) / 1000).toFixed(1)} s). Connect a board.`);
   enable(['connect', 'flash'], true);
   if (location.search.includes('selftest')) {
     await selfTest().catch(e => { print(String(e), 'err'); (window as any).__selftest = { error: String(e) }; });

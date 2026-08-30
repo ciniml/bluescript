@@ -8,6 +8,7 @@ import { HostEnv, HostUnixEnv, HostWindowsEnv } from './host-env';
 type BoardEnvMap = {
     esp32: Esp32Env;
     esp32s3: Esp32Env;
+    'm5stack-atoms3': Esp32Env;
     host: HostEnv;
 };
 

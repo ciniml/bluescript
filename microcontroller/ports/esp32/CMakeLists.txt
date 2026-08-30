@@ -8,6 +8,13 @@ set(EXTRA_COMPONENT_DIRS
         "../../core" 
     )
 
+# Board variant: "esp32" (generic, default) or a board with extra firmware
+# support such as "m5stack-atoms3". Every variant provides a component named
+# "board" in boards/<BOARD>/board/ (the generic one is empty), which the main
+# component requires; its built-in module is boards/<BOARD>/std-module.c when present.
+set(BOARD "esp32" CACHE STRING "Board variant")
+list(APPEND EXTRA_COMPONENT_DIRS "boards/${BOARD}")
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(bluescript)
 
