@@ -22,6 +22,8 @@ const STORAGE_KEY = 'bluescript-web-project';
 
 const tools = new ToolchainClient();
 const compiler = new BrowserCompiler(tools);
+// Test hook for automated (headless) checks.
+(window as any).__bs = { compiler, installPackage };
 let device: WebBluetoothDevice | undefined;
 let currentFile = 'index.bs';
 

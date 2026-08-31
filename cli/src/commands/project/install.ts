@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { logger } from "../../core/logger";
 import { ProjectConfigHandler, PackageSource ,PROJECT_DEFAULT_PATHS } from "../../config/project-config";
+import { parsePackageUrl } from "../../core/package-url";
 import { cwd, simpleExec } from "../../core/command-exec";
 import * as fs from '../../core/fs';
 import * as path from 'path';
@@ -64,22 +65,52 @@ class InstallationHandler extends CommandHandlerWithUpdateCheck {
 
     private async downloadPackage(url: string, version?: string): Promise<ProjectConfigHandler> {
         logger.log(`Downloading from ${url}...`);
+        const location = parsePackageUrl(url);
         const tmpDir = path.join(GLOBAL_SETTINGS.BLUESCRIPT_DIR, 'tmp-package');
-        const branchArgs = version ? ['--branch', version] : [];
+        // A tree URL is ambiguous when the branch name contains '/'; try each split.
+        const attempts = version ? [{ ref: version, subdir: location.subdir ?? '' }]
+            : location.candidates ?? [{ ref: location.ref ?? '', subdir: location.subdir ?? '' }];
         try {
-            await simpleExec('git', ['clone', '--depth', '1', ...branchArgs, url, tmpDir]);
+            let cloned = false;
+            let lastError: unknown;
+            for (const attempt of attempts) {
+                if (fs.exists(tmpDir)) fs.removeDir(tmpDir);
+                const branchArgs = attempt.ref ? ['--branch', attempt.ref] : [];
+                try {
+                    await simpleExec('git', ['clone', '--depth', '1', ...branchArgs, location.gitUrl, tmpDir]);
+                } catch (e) {
+                    lastError = e;
+                    continue;
+                }
+                if (!attempt.subdir || fs.exists(path.join(tmpDir, attempt.subdir, 'bsconfig.json'))) {
+                    location.subdir = attempt.subdir || undefined;
+                    cloned = true;
+                    break;
+                }
+            }
+            if (!cloned) {
+                throw lastError ?? new Error('no matching branch/directory combination');
+            }
             const gitDir = path.join(tmpDir, '.git');
             if (fs.exists(gitDir)) {
                 fs.removeDir(gitDir);
             }
-            const configHandler = ProjectConfigHandler.load(tmpDir);
+            // The package may live in a directory of the repository.
+            const packageRoot = location.subdir ? path.join(tmpDir, location.subdir) : tmpDir;
+            if (!fs.exists(path.join(packageRoot, 'bsconfig.json'))) {
+                throw new Error(`No bsconfig.json in ${location.subdir ?? 'the repository root'}.`);
+            }
+            const configHandler = ProjectConfigHandler.load(packageRoot);
             const packageName = configHandler.getConfig().projectName;
             const packageDir = path.join(this.packagesDir, packageName);
             if (fs.exists(packageDir)) {
                 fs.removeDir(packageDir);
             }
-            fs.moveDir(tmpDir, packageDir);
-            return configHandler;
+            fs.moveDir(packageRoot, packageDir);
+            if (fs.exists(tmpDir)) {
+                fs.removeDir(tmpDir);
+            }
+            return ProjectConfigHandler.load(packageDir);
         } catch (error) {
             if (fs.exists(tmpDir)) {
                 fs.removeDir(tmpDir);

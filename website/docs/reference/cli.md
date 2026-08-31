@@ -227,6 +227,12 @@ Sets up an ESP32-family board **without installing ESP-IDF**. Instead of the 2 G
 
 *   `<board-name>`: The target board identifier (`esp32` or `esp32s3`).
 
+Package URLs (for `project install` and the browser) may point at a whole
+repository (`https://github.com/o/r.git`), a directory of its default branch
+(`...r.git#path/in/repo`), or a GitHub tree URL including the branch
+(`https://github.com/o/r/tree/<branch>/<path>`; branch names containing `/`
+are resolved automatically).
+
 **Options:**
 
 | Option | Description |

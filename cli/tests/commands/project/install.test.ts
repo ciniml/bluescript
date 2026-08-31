@@ -226,3 +226,21 @@ function deleteDummyProject(projectRoot: string) {
         fs.removeDir(projectRoot);
     }
 }
+
+describe('parsePackageUrl', () => {
+    const { parsePackageUrl } = require('../../../src/core/package-url');
+    it('parses plain, #subdir and GitHub tree URLs', () => {
+        expect(parsePackageUrl('https://github.com/a/b.git')).toEqual({ gitUrl: 'https://github.com/a/b.git' });
+        expect(parsePackageUrl('https://github.com/a/b.git#packages/x')).toEqual({ gitUrl: 'https://github.com/a/b.git', subdir: 'packages/x' });
+        const tree = parsePackageUrl('https://github.com/a/b/tree/main/packages/x');
+        expect(tree.gitUrl).toBe('https://github.com/a/b.git');
+        expect(tree.candidates![0]).toEqual({ ref: 'main', subdir: 'packages/x' });
+        // Branch names may contain '/': every split is offered, shortest ref first.
+        const slashed = parsePackageUrl('https://github.com/a/b/tree/feature/clang-toolchain/packages/x');
+        expect(slashed.candidates).toEqual([
+            { ref: 'feature', subdir: 'clang-toolchain/packages/x' },
+            { ref: 'feature/clang-toolchain', subdir: 'packages/x' },
+            { ref: 'feature/clang-toolchain/packages', subdir: 'x' },
+        ]);
+    });
+});

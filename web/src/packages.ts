@@ -5,6 +5,7 @@
 import { Buffer } from 'buffer';
 import { MemoryFileSystem } from '../../lang/src/compiler/file-system';
 import { PROJECT_DIR, PACKAGES_DIR } from './paths';
+import { parsePackageUrl } from '../../cli/src/core/package-url';
 
 export type PackageConfig = {
   projectName: string;
@@ -29,10 +30,11 @@ export function readPackageConfig(fs: MemoryFileSystem, name: string): PackageCo
   return JSON.parse(fs.readTextFile(`${PACKAGES_DIR}/${name}/bsconfig.json`));
 }
 
-function parseGitHubUrl(url: string): { owner: string, repo: string } {
-  const m = url.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+function parseGitHubUrl(url: string) {
+  const loc = parsePackageUrl(url);
+  const m = loc.gitUrl.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
   if (!m) throw new Error(`Only GitHub repositories can be installed in the browser: ${url}`);
-  return { owner: m[1], repo: m[2] };
+  return { owner: m[1], repo: m[2], ref: loc.ref, subdir: loc.subdir, candidates: loc.candidates };
 }
 
 async function getJson(url: string) {
@@ -44,12 +46,27 @@ async function getJson(url: string) {
 // Fetch a package (and, recursively, its dependencies) into packages/<name>.
 // Returns the names of the installed packages.
 export async function installPackage(fs: MemoryFileSystem, url: string, version?: string, log: (s: string) => void = () => {}): Promise<string[]> {
-  const { owner, repo } = parseGitHubUrl(url);
-  const ref = version ?? (await getJson(`https://api.github.com/repos/${owner}/${repo}`)).default_branch;
-  log(`Fetching ${owner}/${repo}@${ref}...`);
-  const tree = await getJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
-  const files: { path: string }[] = tree.tree.filter((e: any) => e.type === 'blob' && !e.path.startsWith('.git'));
-  const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/`;
+  const { owner, repo, ref: urlRef, subdir: urlSubdir, candidates } = parseGitHubUrl(url);
+  // A tree URL is ambiguous when the branch name contains '/'; try each split.
+  let ref = version ?? urlRef ?? (await getJson(`https://api.github.com/repos/${owner}/${repo}`)).default_branch;
+  let subdir = urlSubdir;
+  let tree: any;
+  for (const attempt of (version || !candidates ? [{ ref, subdir: subdir ?? '' }] : candidates)) {
+    try {
+      tree = await getJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(attempt.ref)}?recursive=1`);
+      ref = attempt.ref; subdir = attempt.subdir || undefined;
+      if (!subdir || tree.tree.some((e: any) => e.path === `${subdir}/bsconfig.json`)) break;
+      tree = undefined;
+    } catch { /* try the next split */ }
+  }
+  if (!tree) throw new Error(`Cannot find a package at ${url}.`);
+  log(`Fetching ${owner}/${repo}@${ref}${subdir ? `/${subdir}` : ''}...`);
+  const prefix = subdir ? `${subdir}/` : '';
+  const files: { path: string }[] = tree.tree
+    .filter((e: any) => e.type === 'blob' && !e.path.startsWith('.git') && e.path.startsWith(prefix))
+    .map((e: any) => ({ path: e.path.slice(prefix.length) }));
+  if (files.length === 0) throw new Error(`No files found under ${subdir ?? 'the repository root'} of ${owner}/${repo}@${ref}.`);
+  const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${prefix}`;
   const contents = await Promise.all(files.map(async f => {
     const r = await fetch(rawBase + f.path);
     if (!r.ok) throw new Error(`${f.path}: ${r.status}`);

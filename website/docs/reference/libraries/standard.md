@@ -48,7 +48,7 @@ start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
 *   **stackchan** — head servos (SCS0009), head-touch sensor (Si12T) and battery
     monitor (INA226) of the Stack-chan CoreS3 base boards, ported from
     [stackchan-idf](https://github.com/ciniml/stackchan-idf).
-    *   **Location:** `packages/stackchan` in this repository (copy it into your project's `packages/` directory)
+    *   **Install:** `bscript project install "https://github.com/ciniml/bluescript/tree/feature/clang-toolchain/packages/stackchan"` (or the same URL in the browser's "Install package")
     *   **Usage:** `import { StackchanServo, StackchanHeadTouch, StackchanBattery, SERVO_M5_BASE } from "stackchan";`
     *   Requires the `m5stack-cores3` runtime; lite bundles need `--components esp_driver_gpio,esp_driver_uart`.
 
