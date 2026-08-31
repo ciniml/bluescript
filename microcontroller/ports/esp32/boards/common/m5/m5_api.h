@@ -38,6 +38,21 @@ bool bs_m5_btn_was_pressed(void);
 bool bs_m5_btn_was_released(void);
 bool bs_m5_btn_pressed_for(int32_t ms);
 
+// Touch screen (CoreS3 and other touch-capable boards; count is 0 elsewhere).
+// Call bs_m5_update() to refresh the state.
+int32_t bs_m5_touch_count(void);
+int32_t bs_m5_touch_x(int32_t index);
+int32_t bs_m5_touch_y(int32_t index);
+bool bs_m5_touch_is_pressed(int32_t index);
+
+// Internal I2C bus (the one M5Unified manages: PMIC, IMU, base-board chips).
+// Register-oriented accessors; return false / -1 on bus errors.
+bool bs_m5_i2c_write_reg8(int32_t addr, int32_t reg, int32_t value, int32_t freq);
+int32_t bs_m5_i2c_read_reg8(int32_t addr, int32_t reg, int32_t freq);
+// Reads `len` (<= 4) big-endian bytes of a register into one integer.
+int32_t bs_m5_i2c_read_reg(int32_t addr, int32_t reg, int32_t len, int32_t freq);
+bool bs_m5_i2c_write_reg16(int32_t addr, int32_t reg, int32_t value, int32_t freq);
+
 // RGB LED (AtomS3 Lite; no-op on boards without one)
 bool bs_m5_led_available(void);
 void bs_m5_led_set(int32_t r, int32_t g, int32_t b);

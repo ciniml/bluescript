@@ -1,0 +1,5 @@
+## Board support for M5Stack CoreS3 / CoreS3 SE with the Stack-chan base boards.
+dependencies:
+  idf: ">=5.1"
+  m5stack/m5unified: "^0.2.7"
+  espressif/led_strip: "^3.0.0"

@@ -250,11 +250,14 @@ export class EspIdfComponents {
     }
 
     // Resolve components for packaging in a runtime bundle: the requested
-    // components, the closure of their public requirements, and the common
-    // components that every program is linked against. Private requirements
-    // are left out (they only matter when building the component itself).
+    // components, their direct private requirements (their .a files reference
+    // those, e.g. esp_driver_uart -> esp_ringbuf), the closure of public
+    // requirements, and the common components every program is linked against.
+    // Private requirements are not followed transitively (that would drag in
+    // most of ESP-IDF through esp_system).
     public resolveForBundle(rootComponentNames: string[]): EspIdfComponentInfo[] {
-        const names = [...rootComponentNames, ...this.commonComponents];
+        const directPrivReqs = rootComponentNames.flatMap(n => this.dependenciesInfo[n]?.priv_reqs ?? []);
+        const names = [...rootComponentNames, ...directPrivReqs, ...this.commonComponents];
         const visited = new Set<string>();
         const result: EspIdfComponentInfo[] = [];
         while (names.length > 0) {

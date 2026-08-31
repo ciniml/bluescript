@@ -66,10 +66,37 @@ void bs_m5_display_draw_rect(int32_t x, int32_t y, int32_t w, int32_t h, uint32_
 void bs_m5_display_draw_line(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint32_t c) { M5.Display.drawLine(x0, y0, x1, y1, rgb(c)); }
 void bs_m5_display_fill_circle(int32_t x, int32_t y, int32_t r, uint32_t c) { M5.Display.fillCircle(x, y, r, rgb(c)); }
 
+int32_t bs_m5_touch_count(void) { return M5.Touch.isEnabled() ? M5.Touch.getCount() : 0; }
+static bool touch_valid(int32_t i) { return M5.Touch.isEnabled() && i >= 0 && i < M5.Touch.getCount(); }
+int32_t bs_m5_touch_x(int32_t i) { return touch_valid(i) ? M5.Touch.getDetail(i).x : -1; }
+int32_t bs_m5_touch_y(int32_t i) { return touch_valid(i) ? M5.Touch.getDetail(i).y : -1; }
+bool bs_m5_touch_is_pressed(int32_t i) { return touch_valid(i) && M5.Touch.getDetail(i).isPressed(); }
+
 bool bs_m5_btn_is_pressed(void) { return M5.BtnA.isPressed(); }
 bool bs_m5_btn_was_pressed(void) { return M5.BtnA.wasPressed(); }
 bool bs_m5_btn_was_released(void) { return M5.BtnA.wasReleased(); }
 bool bs_m5_btn_pressed_for(int32_t ms) { return M5.BtnA.pressedFor(ms); }
+
+bool bs_m5_i2c_write_reg8(int32_t addr, int32_t reg, int32_t value, int32_t freq) {
+    return m5::In_I2C.writeRegister8((uint8_t)addr, (uint8_t)reg, (uint8_t)value, (uint32_t)freq);
+}
+int32_t bs_m5_i2c_read_reg8(int32_t addr, int32_t reg, int32_t freq) {
+    uint8_t v = 0;
+    if (!m5::In_I2C.readRegister((uint8_t)addr, (uint8_t)reg, &v, 1, (uint32_t)freq)) return -1;
+    return v;
+}
+int32_t bs_m5_i2c_read_reg(int32_t addr, int32_t reg, int32_t len, int32_t freq) {
+    uint8_t buf[4] = {0};
+    if (len < 1 || len > 4) return -1;
+    if (!m5::In_I2C.readRegister((uint8_t)addr, (uint8_t)reg, buf, (size_t)len, (uint32_t)freq)) return -1;
+    int32_t v = 0;
+    for (int i = 0; i < len; i++) v = (v << 8) | buf[i];
+    return v;
+}
+bool bs_m5_i2c_write_reg16(int32_t addr, int32_t reg, int32_t value, int32_t freq) {
+    uint8_t buf[2] = {(uint8_t)(value >> 8), (uint8_t)(value & 0xff)};
+    return m5::In_I2C.writeRegister((uint8_t)addr, (uint8_t)reg, buf, 2, (uint32_t)freq);
+}
 
 bool bs_m5_led_available(void) { return s_led != nullptr; }
 void bs_m5_led_set(int32_t r, int32_t g, int32_t b) {

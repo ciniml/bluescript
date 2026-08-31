@@ -1,0 +1,8 @@
+{
+  "projectName": "stackchan",
+  "version": "0.1.0",
+  "vmVersion": "2.1.0",
+  "dependencies": {},
+  "boardName": "m5stack-cores3",
+  "espIdfComponents": ["esp_driver_uart", "esp_driver_gpio"]
+}

@@ -243,7 +243,7 @@ async function selfTest() {
   }
   const fragments = ['console.log(fib(10));',
                      'gpio.setDirection(2, 1); gpio.setLevel(2, 1); time.delay(10); console.log(gpio.getLevel(2));',
-                     ...(compiler.board === 'm5stack-atoms3' ? [
+                     ...(compiler.board.startsWith('m5stack-') ? [
                        'm5.begin(); m5.display.clear(0x000000); m5.display.print(m5.boardName()); m5.update(); if (m5.btn.wasPressed()) m5.led.set(0, 255, 0);'] : []),
                      ...(compiler.componentNames.length > 0 ? [
                        'code`#include "driver/gpio.h"`\nfunction pullup(pin: integer) { code`gpio_set_pull_mode((gpio_num_t)${pin}, GPIO_PULLUP_ONLY);` }\npullup(2); console.log("pullup");'] : [])];

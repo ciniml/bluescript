@@ -21,7 +21,7 @@ Currently, the following libraries are available for stable use.
     *   `gpio.getLevel(pin: integer): integer`
     *   Example: `gpio.setDirection(2, 1); gpio.setLevel(2, 1);`
 
-### Built-in on `m5stack-atoms3` (M5Stack AtomS3 / AtomS3 Lite / AtomS3R)
+### Built-in on the M5Stack boards (`m5stack-atoms3`, `m5stack-cores3`)
 The board's runtime embeds [M5Unified](https://github.com/m5stack/M5Unified); the board model is detected at
 start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
 *   `m5.begin()` — initialize (call once); `m5.update()` — poll the button (call in loops); `m5.boardName(): string`
@@ -31,7 +31,10 @@ start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
     (no-ops on AtomS3 Lite, which has no display)
 *   `m5.btn` — `isPressed()`, `wasPressed()`, `wasReleased()`, `pressedFor(ms)` (the front button; call `m5.update()` first)
 *   `m5.led` — `available()`, `set(r, g, b)`, `off()` (the RGB LED of AtomS3 Lite; no-op on the others)
-*   `m5.imu` — `available()`, `accelX()`, `accelY()`, `accelZ()` in G (AtomS3 / AtomS3R)
+*   `m5.imu` — `available()`, `accelX()`, `accelY()`, `accelZ()` in G (AtomS3 / AtomS3R / CoreS3)
+*   `m5.touch` — `count()`, `x(i)`, `y(i)`, `isPressed(i)` for the touch screen (CoreS3; count is 0 elsewhere)
+*   `m5.i2c` — register access on the internal I2C bus M5Unified manages: `readReg8(addr, reg, freq)`,
+    `writeReg8(addr, reg, value, freq)`, `readReg(addr, reg, len, freq)` (big-endian), `writeReg16(addr, reg, value, freq)`
 *   Example:
     ```ts
     m5.begin();
@@ -40,6 +43,14 @@ start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
     m5.display.print("Hello " + m5.boardName());
     while (true) { m5.update(); if (m5.btn.wasPressed()) m5.led.set(0, 255, 0); }
     ```
+
+### Stack-chan
+*   **stackchan** — head servos (SCS0009), head-touch sensor (Si12T) and battery
+    monitor (INA226) of the Stack-chan CoreS3 base boards, ported from
+    [stackchan-idf](https://github.com/ciniml/stackchan-idf).
+    *   **Location:** `packages/stackchan` in this repository (copy it into your project's `packages/` directory)
+    *   **Usage:** `import { StackchanServo, StackchanHeadTouch, StackchanBattery, SERVO_M5_BASE } from "stackchan";`
+    *   Requires the `m5stack-cores3` runtime; lite bundles need `--components esp_driver_gpio,esp_driver_uart`.
 
 ### Digital I/O
 *   **GPIO (General Purpose Input/Output)**

@@ -43,6 +43,11 @@ const m5stackAtomS3ProjectSchema = baseConfigSchema.extend({
     espIdfComponents: z.array(z.string()).default([]),
 });
 
+const m5stackCoreS3ProjectSchema = baseConfigSchema.extend({
+    boardName: z.literal('m5stack-cores3'),
+    espIdfComponents: z.array(z.string()).default([]),
+});
+
 const hostProjectSchema = baseConfigSchema.extend({
     boardName: z.literal('host'),
 });
@@ -51,6 +56,7 @@ const projectConfigSchema = z.discriminatedUnion('boardName', [
     esp32ProjectSchema,
     esp32s3ProjectSchema,
     m5stackAtomS3ProjectSchema,
+    m5stackCoreS3ProjectSchema,
     hostProjectSchema,
 ]);
 

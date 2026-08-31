@@ -28,13 +28,13 @@ function makeBuildDir(): string {
 }
 
 describe('EspIdfComponents.resolveForBundle', () => {
-  test('follows public requirements and adds the common components, not private ones', () => {
+  test('follows public requirements, direct private requirements and the common components', () => {
     const dir = makeBuildDir();
     const idf = new EspIdfComponents(dir, '/esp', 'esp32s3');
     const names = idf.resolveForBundle(['esp_driver_gpio']).map(c => c.name);
     expect(names).toEqual(expect.arrayContaining(['esp_driver_gpio', 'hal', 'soc', 'esp_common', 'freertos', 'newlib']));
-    expect(names).not.toContain('esp_pm');       // private requirement
-    expect(names).not.toContain('mbedtls');
+    expect(names).toContain('esp_pm');           // direct private requirement of a requested component
+    expect(names).not.toContain('mbedtls');      // transitive private requirements are not followed
     expect(names).not.toContain('headeronly');   // no archive
     expect(new Set(names).size).toBe(names.length);
   });

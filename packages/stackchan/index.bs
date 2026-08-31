@@ -1,0 +1,182 @@
+// Stack-chan hardware for the M5Stack CoreS3 base boards:
+//   - SCS0009 serial head servos (yaw = ID 1, pitch = ID 2)  — scs.c
+//   - Si12T head-touch sensor (I2C 0x68 on the internal bus)
+//   - INA226 battery monitor (I2C 0x41 on the base board)
+// Ported from https://github.com/ciniml/stackchan-idf (BSL-1.0).
+// The I2C chips are reached through the built-in `m5.i2c` (the internal bus
+// that M5Unified manages); call m5.begin() before using them.
+
+code`
+#include "scs.h"
+`
+
+export const SERVO_M5_BASE = 0;      // dedicated servo UART: TX=G6, RX=G7
+export const SERVO_TAKAO_BASE = 1;   // half-duplex on port A: TX=G2, RX=G1
+
+export class StackchanServo {
+    yawZero: integer;
+    pitchZero: integer;
+
+    constructor() {
+        // SCS0009 raw steps of the neutral head pose (M5 base values).
+        this.yawZero = 460;
+        this.pitchZero = 620;
+    }
+
+    // base: SERVO_M5_BASE or SERVO_TAKAO_BASE. Returns false when neither servo answers.
+    begin(base: integer): boolean {
+        if (base == 1)
+            return this.beginPins(2, 1, 1000000, true);
+        else
+            return this.beginPins(6, 7, 1000000, false);
+    }
+
+    beginPins(tx: integer, rx: integer, baud: integer, echoCancel: boolean): boolean {
+        let ok: boolean = false;
+        code`${ok} = scs_begin(${tx}, ${rx}, ${baud}, ${echoCancel}) ? 1 : 0;`
+        if (!ok)
+            return false;
+        let yawOk: boolean = false;
+        let pitchOk: boolean = false;
+        code`${yawOk} = scs_ping(1) ? 1 : 0;`
+        code`${pitchOk} = scs_ping(2) ? 1 : 0;`
+        this.torque(true);
+        return yawOk || pitchOk;
+    }
+
+    setZero(yawZero: integer, pitchZero: integer) {
+        this.yawZero = yawZero;
+        this.pitchZero = pitchZero;
+    }
+
+    torque(on: boolean) {
+        code`scs_enable_torque(1, ${on}); scs_enable_torque(2, ${on});`
+    }
+
+    // 1 raw step = 0.3125 deg (SCS0009).
+    private toRaw(deg: float, zero: integer): integer {
+        let raw = zero + (deg * 16.0 / 5.0);
+        if (raw < 0.0) return 0;
+        if (raw > 1023.0) return 1023;
+        let v: integer = 0;
+        code`${v} = (int32_t)${raw};`
+        return v;
+    }
+
+    // Head angles in degrees relative to the zero pose.
+    // timeMs 0 = immediate; speed in raw units (0 = unlimited, 200 ≈ 30 deg/s).
+    move(yawDeg: float, pitchDeg: float, timeMs: integer, speed: integer) {
+        let yawRaw = this.toRaw(yawDeg, this.yawZero);
+        let pitchRaw = this.toRaw(pitchDeg, this.pitchZero);
+        code`scs_write_goal_position(1, ${yawRaw}, ${timeMs}, ${speed});`
+        code`scs_write_goal_position(2, ${pitchRaw}, ${timeMs}, ${speed});`
+    }
+
+    private readDeg(id: integer, zero: integer): float {
+        let raw: integer = 0;
+        code`${raw} = scs_read_present_position(${id});`
+        if (raw < 0) return 0.0;
+        return (raw - zero) * 5.0 / 16.0;
+    }
+    yaw(): float { return this.readDeg(1, this.yawZero); }
+    pitch(): float { return this.readDeg(2, this.pitchZero); }
+}
+
+// Si12T capacitive touch: three zones on top of the head
+// (0 = front, 1 = middle, 2 = back), 2-bit intensity each.
+export class StackchanHeadTouch {
+    // Chip setup (see si12t_touch.cpp of stackchan-idf). Returns false when absent.
+    begin(): boolean {
+        const addr = 104;   // 0x68
+        const freq = 100000;
+        // reference/hold registers 0x0A..0x0F to 0
+        for (let reg = 10; reg <= 15; reg++)
+            if (!m5.i2c.writeReg8(addr, reg, 0, freq)) return false;
+        if (!m5.i2c.writeReg8(addr, 9, 15, freq)) return false;   // CTRL2 = 0x0F
+        if (!m5.i2c.writeReg8(addr, 9, 7, freq)) return false;    // CTRL2 = 0x07
+        if (!m5.i2c.writeReg8(addr, 8, 37, freq)) return false;   // CTRL1 = 0x25
+        for (let reg = 2; reg <= 6; reg++)                        // sensitivity = 0x33
+            if (!m5.i2c.writeReg8(addr, reg, 51, freq)) return false;
+        return true;
+    }
+
+    // zone: 0 = front, 1 = middle, 2 = back; returns 0 (idle) .. 3 (high)
+    intensity(zone: integer): integer {
+        let raw = m5.i2c.readReg8(104, 16, 100000);               // OUTPUT1
+        if (raw < 0) return 0;
+        if (zone == 0) return (raw >> 4) & 3;
+        if (zone == 1) return (raw >> 2) & 3;
+        if (zone == 2) return raw & 3;
+        return 0;
+    }
+
+    // A deliberate press: middle or back at high intensity. Uniform readings on
+    // all three zones are treated as RF interference (see stackchan-idf).
+    isPressed(): boolean {
+        let raw = m5.i2c.readReg8(104, 16, 100000);
+        if (raw < 0) return false;
+        let f = (raw >> 4) & 3;
+        let m = (raw >> 2) & 3;
+        let b = raw & 3;
+        if (f == m && m == b && f > 0) return false;
+        return m >= 3 || b >= 3;
+    }
+
+    // Reset the chip's idle baseline (call after power rail / RF changes).
+    recalibrate() {
+        m5.i2c.writeReg8(104, 10, 255, 100000);
+        m5.i2c.writeReg8(104, 11, 15, 100000);
+        m5.i2c.writeReg8(104, 10, 0, 100000);
+        m5.i2c.writeReg8(104, 11, 0, 100000);
+    }
+}
+
+// INA226 power monitor on the base board (address 0x41, 0.01 ohm shunt).
+export class StackchanBattery {
+    begin(): boolean {
+        const addr = 65;    // 0x41
+        const freq = 400000;
+        let id = m5.i2c.readReg(addr, 255, 2, freq);   // die ID register
+        if (id != 8800) return false;                  // 0x2260
+        // config: 16-sample averaging, 1.1 ms conversions, continuous (0x4527)
+        return m5.i2c.writeReg16(addr, 0, 17703, freq);
+    }
+
+    // Bus voltage in volts (LSB 1.25 mV).
+    voltage(): float {
+        let raw = m5.i2c.readReg(65, 2, 2, 400000);
+        if (raw < 0) return 0.0;
+        return raw * 0.00125;
+    }
+
+    // Shunt current in amperes (shunt LSB 2.5 uV over 0.01 ohm).
+    current(): float {
+        let raw = m5.i2c.readReg(65, 1, 2, 400000);
+        if (raw < 0) return 0.0;
+        if (raw > 32767) raw = raw - 65536;            // sign extend
+        return raw * 0.00025;
+    }
+
+    // Rough single-cell LiPo percentage from the voltage.
+    percent(): integer {
+        let v = this.voltage();
+        if (v >= 4.2) return 100;
+        if (v <= 3.3) return 0;
+        if (v >= 4.1) return 90 + this.lerp(v, 4.1, 4.2, 10);
+        if (v >= 4.0) return 80 + this.lerp(v, 4.0, 4.1, 10);
+        if (v >= 3.9) return 65 + this.lerp(v, 3.9, 4.0, 15);
+        if (v >= 3.8) return 55 + this.lerp(v, 3.8, 3.9, 10);
+        if (v >= 3.7) return 45 + this.lerp(v, 3.7, 3.8, 10);
+        if (v >= 3.6) return 30 + this.lerp(v, 3.6, 3.7, 15);
+        if (v >= 3.5) return 18 + this.lerp(v, 3.5, 3.6, 12);
+        if (v >= 3.4) return 8 + this.lerp(v, 3.4, 3.5, 10);
+        return this.lerp(v, 3.3, 3.4, 8);
+    }
+
+    private lerp(v: float, lo: float, hi: float, range: integer): integer {
+        let t = (v - lo) / (hi - lo) * range;
+        let r: integer = 0;
+        code`${r} = (int32_t)${t};`
+        return r;
+    }
+}
