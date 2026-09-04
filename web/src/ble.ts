@@ -64,6 +64,11 @@ export class WebBluetoothDevice {
     await this.writeChain;
   }
 
+  // Set the board's BLE device name (persisted on the board).
+  async setName(name: string): Promise<void> {
+    await this.write(new ProtocolPacketBuilder(MTU).setName(name).build());
+  }
+
   // Restart the board; the connection drops afterwards.
   async reboot(): Promise<void> {
     await this.write(new ProtocolPacketBuilder(MTU).reboot().build());

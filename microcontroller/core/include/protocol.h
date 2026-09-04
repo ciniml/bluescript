@@ -12,6 +12,8 @@ void CORE_TEXT_SECTION bs_protocol_init(void);
 void bs_board_reboot(void);
 // Port hook: SHA-256 of the running firmware's ELF (zeros if unknown).
 void bs_board_get_firmware_sha256(uint8_t out[32]);
+// Port hook: persist and apply a new BLE device name.
+void bs_board_set_device_name(const char* name);
 
 void CORE_TEXT_SECTION bs_protocol_write_log(char* message);
 

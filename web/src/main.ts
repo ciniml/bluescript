@@ -169,7 +169,7 @@ $('connect').onclick = async () => {
     device = new WebBluetoothDevice({
       log: (m) => print(m.replace(/\n$/, '')),
       error: (m) => print(m, 'err'),
-      disconnected: () => { setStatus('Disconnected.'); enable(['run', 'runProject', 'reset', 'reboot'], false); },
+      disconnected: () => { setStatus('Disconnected.'); enable(['run', 'runProject', 'reset', 'reboot', 'rename'], false); },
     });
     await device.connect();
     setStatus(`Connected to ${device.name}. Resetting...`);
@@ -188,7 +188,7 @@ $('connect').onclick = async () => {
     const idf = fw && /^v?\d/.test(fw.idfVersion) ? `, ESP-IDF ${fw.idfVersion}` : '';
     const fwText = fw && layout.firmware ? ` Runtime ${fw.version} (built ${fw.buildTime}${idf}) verified.` : ' Runtime identity not verified.';
     setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}.${fwText}`);
-    enable(['run', 'runProject', 'reset', 'reboot'], true);
+    enable(['run', 'runProject', 'reset', 'reboot', 'rename'], true);
   } catch (e) { print(String(e), 'err'); }
 };
 
@@ -227,6 +227,15 @@ $('reset').onclick = async () => {
     const layout = await device!.init();
     compiler.reset(layout);
     print('--- session reset ---', 'info');
+  } catch (e) { print(String(e), 'err'); }
+};
+
+$('rename').onclick = async () => {
+  const name = prompt('New device name (empty reverts to the default)', device!.name);
+  if (name === null) return;
+  try {
+    await device!.setName(name);
+    print(`--- device name set to '${name || '(default)'}'; it shows up from the next connection ---`, 'info');
   } catch (e) { print(String(e), 'err'); }
 };
 

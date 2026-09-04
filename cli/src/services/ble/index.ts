@@ -55,6 +55,12 @@ export class DeviceService extends Service<DeviceServiceEvents, Buffer> {
         return p;
     }
 
+    // Set the board's BLE device name (persisted; applies to the next advertising).
+    public async setDeviceName(name: string): Promise<void> {
+        const builder = new ProtocolPacketBuilder(MTU).setName(name);
+        await this.send("set-name", builder.build());
+    }
+
     // Restart the board. The BLE connection drops as a consequence.
     public async reboot(): Promise<void> {
         const builder = new ProtocolPacketBuilder(MTU).reboot();

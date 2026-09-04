@@ -14,6 +14,7 @@ export enum Protocol {
     Exectime,
     Profile,
     Reboot,
+    SetName,
 }
 
 
@@ -138,6 +139,19 @@ export class ProtocolPacketBuilder {
         return this.appendCommand(header);
     }
 
+    // Set the BLE device name (persisted on the board; empty reverts to the default).
+    public setName(name: string) {
+        const utf8 = Buffer.from(name, 'utf-8');
+        if (utf8.length > 31) {
+            throw new Error('The device name must be at most 31 bytes of UTF-8.');
+        }
+        const header = Buffer.allocUnsafe(2 + utf8.length);
+        header.writeUInt8(Protocol.SetName, 0);
+        header.writeUInt8(utf8.length, 1);
+        utf8.copy(header, 2);
+        return this.appendCommand(header);
+    }
+
     // Restart the board. Processed by the board's communication task, so it
     // works even when a program cannot be interrupted.
     public reboot() {
@@ -180,6 +194,7 @@ type ProtocolPayloads = {
     [Protocol.Exectime]: { id: number; time: number };
     [Protocol.Profile]: { fid: number; paramtypes: string[] };
     [Protocol.Reboot]: {};
+    [Protocol.SetName]: {};
 }
 
 export type ParseResult<T extends Protocol = Protocol> = {

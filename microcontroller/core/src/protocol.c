@@ -21,6 +21,7 @@ typedef enum {
     PROTOCOL_EXECTIME,
     PROTOCOL_PROFILE,
     PROTOCOL_REBOOT,
+    PROTOCOL_SET_NAME,
 
     PROTOCOL_END
 } protocol_t;
@@ -30,6 +31,9 @@ __attribute__((weak)) void bs_board_reboot(void) {}
 
 // SHA-256 of the firmware ELF. Provided by the port; the default reports zeros.
 __attribute__((weak)) void bs_board_get_firmware_sha256(uint8_t out[32]) { memset(out, 0, 32); }
+
+// Persist and apply a new device name. Provided by the port; default: ignore.
+__attribute__((weak)) void bs_board_set_device_name(const char* name) { (void)name; }
 
 // Functions whose addresses are reported to the host so that it can verify
 // that its copy of the firmware ELF matches the board (see tools/firmware-id.ts).
@@ -169,6 +173,19 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             bs_interrupt_requested = 1;
             bs_main_thread_reset();
             idx += 1;
+            break;
+        }
+        case PROTOCOL_SET_NAME:
+        // | cmd(1byte) | len(1byte) | utf-8 name(len bytes) |
+        {
+            uint8_t name_len = buffer[idx + 1];
+            char name[64];
+            if (name_len >= sizeof(name)) name_len = sizeof(name) - 1;
+            memcpy(name, buffer + idx + 2, name_len);
+            name[name_len] = '\0';
+            BS_LOG_INFO("Set device name: %s", name);
+            bs_board_set_device_name(name);
+            idx += 2 + buffer[idx + 1];
             break;
         }
         case PROTOCOL_REBOOT:

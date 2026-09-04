@@ -265,7 +265,7 @@ it compiles against and refuses to load code on mismatch. Pass
 **Limitations of the lite environment:**
 
 *   Projects can only use the ESP-IDF components that were packaged in the bundle with `bscript board build-runtime --components ...`. GPIO is also available without any component through the built-in `gpio` object.
-*   The BLE device name is fixed to the one the bundle was built with (`--device-name` is not supported).
+*   `flash-runtime` writes the bundle with its default BLE name; rename the board afterwards with `bscript board set-name`.
 *   `bscript board build-runtime` is not available.
 
 ### `bscript board reboot <board-name>`
@@ -276,6 +276,19 @@ interrupted (for example a loop-free long computation). Reconnect afterwards.
 
 ```bash
 bscript board reboot esp32s3 -d my-device
+```
+
+### `bscript board set-name <board-name> <new-name>`
+
+Stores a BLE device name on the board (NVS), so each board can be told apart
+even when they were flashed from the same prebuilt runtime bundle. The name
+shows up from the next connection; an empty name reverts to the compile-time
+default (`BLUESCRIPT`). Use `-d <current-name>` to reach a board that was
+already renamed, and `-d <new-name>` with `project run` / `repl` afterwards.
+
+```bash
+bscript board set-name m5stack-cores3 chan-1
+bscript project run -d chan-1
 ```
 
 ### `bscript board list`

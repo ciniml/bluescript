@@ -113,3 +113,17 @@ describe('ProtocolParser.parseMemory', () => {
         expect(r.layout.firmware).toEqual({ elfSha256: 'ab'.repeat(32), protocolVersion: 2, sentinels: [0x42086c80, 0x4200a0f4] });
     });
 });
+
+describe('ProtocolPacketBuilder.setName', () => {
+    const { ProtocolPacketBuilder, Protocol } = require('../../src/services/device-protocol');
+    it('encodes cmd, length and utf-8 bytes', () => {
+        const packets = new ProtocolPacketBuilder(495).setName('robo-1').build();
+        const p = packets[0];
+        expect(p[2]).toBe(Protocol.SetName);
+        expect(p[3]).toBe(6);
+        expect(p.subarray(4, 10).toString('utf-8')).toBe('robo-1');
+    });
+    it('rejects names longer than 31 bytes', () => {
+        expect(() => new ProtocolPacketBuilder(495).setName('あ'.repeat(11))).toThrow(/31 bytes/);
+    });
+});

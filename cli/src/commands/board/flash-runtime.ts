@@ -99,7 +99,7 @@ export class ESP32FlashRuntimeHandler extends FlashRuntimeHandler {
     async flashRuntime(port: string, deviceName?: string) {
         if (this.usesBundle) {
             if (deviceName !== undefined && deviceName !== DEFAULT_DEVICE_NAME) {
-                throw new Error('The device name is fixed in a prebuilt runtime bundle; --device-name is not supported with setup-lite.');
+                throw new Error("A prebuilt runtime bundle flashes with the default name; rename the board afterwards with 'bscript board set-name'.");
             }
             await this.runEsptool(['-b', '460800', 'write_flash', '@flash_args'], port);
             return;

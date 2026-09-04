@@ -39,6 +39,23 @@ static void gatts_profile_shell_event_handler(esp_gatts_cb_event_t event, esp_ga
     #define DEVICE_NAME            "BLUESCRIPT"
 #endif
 
+// The advertised name: the one stored in NVS (settable at runtime through the
+// SET_NAME protocol command), or the compile-time default.
+#define DEVICE_NAME_NVS_NAMESPACE "bluescript"
+#define DEVICE_NAME_NVS_KEY       "dev_name"
+static char s_device_name[32] = DEVICE_NAME;
+
+static void load_device_name(void) {
+    nvs_handle_t h;
+    if (nvs_open(DEVICE_NAME_NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return;
+    size_t len = sizeof(s_device_name);
+    if (nvs_get_str(h, DEVICE_NAME_NVS_KEY, s_device_name, &len) != ESP_OK) {
+        strlcpy(s_device_name, DEVICE_NAME, sizeof(s_device_name));
+    }
+    nvs_close(h);
+}
+
+
 
 #define GATTS_CHAR_VAL_LEN_MAX 0x40
 #define MAX_MTU_SIZE  512
@@ -97,6 +114,22 @@ static esp_ble_adv_data_t scan_rsp_data = {
     .flag = (ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT),
 };
 
+
+// SET_NAME protocol hook: persist the name and apply it to advertising. An
+// empty name reverts to the compile-time default.
+void bs_board_set_device_name(const char* name) {
+    nvs_handle_t h;
+    if (nvs_open(DEVICE_NAME_NVS_NAMESPACE, NVS_READWRITE, &h) == ESP_OK) {
+        if (name[0] == '\0') nvs_erase_key(h, DEVICE_NAME_NVS_KEY);
+        else nvs_set_str(h, DEVICE_NAME_NVS_KEY, name);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    strlcpy(s_device_name, name[0] != '\0' ? name : DEVICE_NAME, sizeof(s_device_name));
+    esp_ble_gap_set_device_name(s_device_name);
+    // Refresh the scan response so the next advertising cycle carries the new name.
+    esp_ble_gap_config_adv_data(&scan_rsp_data);
+}
 
 static esp_ble_adv_params_t adv_params = {
     .adv_int_min        = 0x20,
@@ -262,7 +295,7 @@ static void gatts_profile_shell_event_handler(esp_gatts_cb_event_t event, esp_ga
         gl_profile_tab[PROFILE_SHELL_APP_ID].service_id.id.uuid.len = ESP_UUID_LEN_16;
         gl_profile_tab[PROFILE_SHELL_APP_ID].service_id.id.uuid.uuid.uuid16 = GATTS_SERVICE_UUID_SHELL;
         gl_profile_tab[PROFILE_SHELL_APP_ID].gatts_if = gatts_if;
-        esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(DEVICE_NAME);
+        esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(s_device_name);
         if (set_dev_name_ret){
             ESP_LOGE(GATTS_TAG, "set device name failed, error code = %x", set_dev_name_ret);
         }
@@ -433,6 +466,7 @@ void bs_ble_init(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK( ret );
+    load_device_name();
 
 #if CONFIG_IDF_TARGET_ESP32
     // Only the original ESP32 has a Classic BT controller whose memory can be released.
@@ -461,7 +495,7 @@ void bs_ble_init(void)
         ESP_LOGE(GATTS_TAG, "%s enable bluetooth failed\n", __func__);
         return;
     }
-    puts(DEVICE_NAME);
+    puts(s_device_name);
 
     ret = esp_ble_gatts_register_callback(gatts_event_handler);
     if (ret){

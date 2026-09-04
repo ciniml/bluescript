@@ -10,6 +10,7 @@ import { registerFlashRuntimeCommand } from './commands/board/flash-runtime';
 import { registerBuildRuntimeCommand } from './commands/board/build-runtime';
 import { registerSetupLiteCommand } from './commands/board/setup-lite';
 import { registerRebootCommand } from './commands/board/reboot';
+import { registerSetNameCommand } from './commands/board/set-name';
 import { registerListCommand } from './commands/board/list';
 import { registerCreateProjectCommand } from './commands/project/create';
 import { registerRunCommand } from './commands/project/run';
@@ -32,6 +33,7 @@ function registerBoardCommands(program: Command) {
     registerFlashRuntimeCommand(boardCommand);
     registerBuildRuntimeCommand(boardCommand);
     registerRebootCommand(boardCommand);
+    registerSetNameCommand(boardCommand);
     registerListCommand(boardCommand);
     registerFullcleanCommand(boardCommand);
     registerUpdateCommand(boardCommand);
