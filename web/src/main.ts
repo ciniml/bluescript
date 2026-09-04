@@ -5,6 +5,7 @@ import { flashRuntime } from './flash';
 import type { MemoryImage } from '../../lang/src/compiler/board-toolchain/board-toolchain';
 import { installPackage, installedPackages, removePackage, readProjectDeps, writeProjectDeps } from './packages';
 import { listBundles, selectedBoard, bundleUrl, switchBoard } from './boards';
+import { SAMPLES } from './samples';
 
 const $ = (id: string) => document.getElementById(id)!;
 const out = $('output') as HTMLPreElement;
@@ -23,7 +24,28 @@ const STORAGE_KEY = 'bluescript-web-project';
 const tools = new ToolchainClient();
 const compiler = new BrowserCompiler(tools);
 // Test hook for automated (headless) checks.
-(window as any).__bs = { compiler, installPackage };
+(window as any).__bs = { compiler, installPackage, loadSample };
+
+// Replace the project with a sample (and install the packages it needs).
+async function loadSample(index: number) {
+  const sample = SAMPLES[index];
+  if (!sample) throw new Error('unknown sample');
+  if (sample.board && !compiler.board.startsWith(sample.board)) {
+    print(`Note: this sample targets ${sample.board}* boards (current: ${compiler.board}).`, 'info');
+  }
+  const deps: { [name: string]: string } = {};
+  for (const p of sample.packages ?? []) {
+    const names = await installPackage(compiler.fs, p.url, undefined, (m) => print(m, 'info'));
+    deps[names[0]] = p.url;
+  }
+  writeProjectDeps(compiler.fs, deps);
+  for (const name of compiler.listSources()) compiler.removeSource(name);
+  for (const [name, text] of Object.entries(sample.files)) compiler.writeSource(name, text);
+  currentFile = 'index.bs';
+  editor.value = compiler.readSource(currentFile);
+  saveProjectFiles(); renderFileList(); renderPackageList();
+  print(`--- sample loaded: ${sample.name} ---`, 'info');
+}
 let device: WebBluetoothDevice | undefined;
 let currentFile = 'index.bs';
 
@@ -117,6 +139,15 @@ $('removeFile').onclick = () => {
   renderFileList();
   renderPackageList();
   setStatus(`Ready (${compiler.board}, toolchain loaded in ${((performance.now() - t) / 1000).toFixed(1)} s). Connect a board.`);
+  compiler.onBuildProgress = (m) => setStatus(`build: ${m}`);
+  const sampleSelect = $('sample') as HTMLSelectElement;
+  SAMPLES.forEach((s, i) => {
+    const o = document.createElement('option');
+    o.value = String(i); o.textContent = s.name;
+    sampleSelect.appendChild(o);
+  });
+  ($('loadSample') as HTMLButtonElement).disabled = false;
+  $('loadSample').onclick = () => { loadSample(Number(sampleSelect.value)).catch(e => print(String(e), 'err')); };
   enable(['connect', 'flash'], true);
   if (location.search.includes('selftest')) {
     await selfTest().catch(e => { print(String(e), 'err'); (window as any).__selftest = { error: String(e) }; });

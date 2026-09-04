@@ -8,6 +8,7 @@
 
 code`
 #include "scs.h"
+#include "esp_random.h"
 `
 
 export const SERVO_M5_BASE = 0;      // dedicated servo UART: TX=G6, RX=G7
@@ -178,5 +179,101 @@ export class StackchanBattery {
         let r: integer = 0;
         code`${r} = (int32_t)${t};`
         return r;
+    }
+}
+
+// Random integer in [0, max) from the hardware RNG.
+export function randomInt(max: integer): integer {
+    let v: integer = 0;
+    code`${v} = (int32_t)(esp_random() % (uint32_t)${max});`
+    return v;
+}
+
+// Trapezoidal-velocity head motion (port of stackchan-idf's PathGenerator) with
+// automatic torque release once the head has been idle for a while.
+// Call tick() every tickMs (e.g. 20 ms) from your main loop.
+export class StackchanMotion {
+    servo: StackchanServo;
+    tickMs: integer;
+    maxVel: float;        // deg per tick
+    maxAcc: float;        // deg per tick^2
+    releaseTicks: integer;
+
+    yawPos: float;
+    pitchPos: float;
+    yawTarget: float;
+    pitchTarget: float;
+    yawVel: float;
+    pitchVel: float;
+    idleTicks: integer;
+    torqueOn: boolean;
+
+    // maxVelDegPerSec ≈ 60, maxAccDegPerSec2 ≈ 180 give a pleasant motion.
+    constructor(servo: StackchanServo, tickMs: integer, maxVelDegPerSec: float, maxAccDegPerSec2: float, releaseMs: integer) {
+        this.servo = servo;
+        this.tickMs = tickMs;
+        this.maxVel = maxVelDegPerSec * tickMs / 1000.0;
+        this.maxAcc = maxAccDegPerSec2 * tickMs / 1000.0 * tickMs / 1000.0;
+        this.releaseTicks = releaseMs / tickMs;
+        this.yawPos = 0.0; this.pitchPos = 0.0;
+        this.yawTarget = 0.0; this.pitchTarget = 0.0;
+        this.yawVel = 0.0; this.pitchVel = 0.0;
+        this.idleTicks = 0;
+        this.torqueOn = false;
+    }
+
+    moveTo(yawDeg: float, pitchDeg: float) {
+        this.yawTarget = yawDeg;
+        this.pitchTarget = pitchDeg;
+    }
+
+    isMoving(): boolean {
+        return this.yawPos != this.yawTarget || this.pitchPos != this.pitchTarget;
+    }
+
+    private abs(v: float): float { if (v < 0.0) return -v; return v; }
+
+    // One axis of the trapezoid: accelerate, cruise, decelerate so that the
+    // velocity reaches zero exactly at the target.
+    private step(pos: float, vel: float, target: float): float {
+        let dist = target - pos;
+        if (this.abs(dist) < 0.005 && this.abs(vel) <= this.maxAcc) return target - pos;   // snap
+        let dir = 1.0;
+        if (dist < 0.0) dir = -1.0;
+        // braking distance at the current speed
+        let brake = vel * vel / (2.0 * this.maxAcc);
+        let v = vel;
+        if (dir * vel < 0.0 || this.abs(dist) <= brake)
+            v = vel - dir * this.maxAcc;              // wrong direction or close: decelerate
+        else if (this.abs(v) < this.maxVel)
+            v = vel + dir * this.maxAcc;              // accelerate
+        if (v > this.maxVel) v = this.maxVel;
+        if (v < -this.maxVel) v = -this.maxVel;
+        if (this.abs(v) >= this.abs(dist)) return dist;   // final step
+        return v;
+    }
+
+    tick() {
+        if (!this.isMoving()) {
+            this.yawVel = 0.0; this.pitchVel = 0.0;
+            if (this.torqueOn) {
+                this.idleTicks = this.idleTicks + 1;
+                if (this.idleTicks >= this.releaseTicks) {
+                    this.servo.torque(false);
+                    this.torqueOn = false;
+                }
+            }
+            return;
+        }
+        if (!this.torqueOn) {
+            this.servo.torque(true);
+            this.torqueOn = true;
+        }
+        this.idleTicks = 0;
+        this.yawVel = this.step(this.yawPos, this.yawVel, this.yawTarget);
+        this.pitchVel = this.step(this.pitchPos, this.pitchVel, this.pitchTarget);
+        this.yawPos = this.yawPos + this.yawVel;
+        this.pitchPos = this.pitchPos + this.pitchVel;
+        this.servo.move(this.yawPos, this.pitchPos, this.tickMs, 0);
     }
 }

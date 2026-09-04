@@ -51,6 +51,19 @@ export async function loadBundle(baseUrl: string, fs: MemoryFileSystem): Promise
 // ToolRunner that ships the memory filesystem to the worker and merges the outputs back.
 export class BrowserToolRunner implements ToolRunner {
   private registered = false;
+  // Called before each tool run with a human-readable step description.
+  onProgress?: (message: string) => void;
+
+  private describe(tool: string, args: string[]): string {
+    if (tool === 'clang') {
+      const i = args.indexOf('-c');
+      const src = i >= 0 ? args[i + 1] : '';
+      return `compiling ${src.split('/').pop()}`;
+    }
+    if (tool === 'llvm-ar') return 'archiving';
+    if (tool === 'lld') return 'linking';
+    return tool;
+  }
 
   constructor(private fs: MemoryFileSystem, private tools: ToolchainClient, private bundle: BundleInfo, private resourceDir: string) {}
 
@@ -67,6 +80,7 @@ export class BrowserToolRunner implements ToolRunner {
 
   async run(tool: string, args: string[], cwd: string): Promise<void> {
     const name = tool as ToolName;   // clang | lld | llvm-ar (always the wasm modules here)
+    this.onProgress?.(this.describe(tool, args));
     await this.registerStaticFiles();
     const files: { [p: string]: Uint8Array } = {};
     for (const [p, data] of this.fs.entries(PROJECT_DIR)) files[p] = new Uint8Array(data);   // copies: transferred to the worker
@@ -118,6 +132,7 @@ export class BrowserCompiler {
   get firmwareDesc() { return this.bundle?.firmware; }
   get flashFiles() { return this.bundle!.flash; }
   get componentNames() { return this.bundle!.components; }
+  set onBuildProgress(f: ((message: string) => void) | undefined) { if (this.runner) this.runner.onProgress = f; }
 
   // Persisted project state: sources, dependencies and installed packages.
   exportProject(): { [path: string]: string } {

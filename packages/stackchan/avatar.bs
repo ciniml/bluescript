@@ -1,0 +1,91 @@
+// A classic Stack-chan face drawn with the m5.display primitives: two round
+// eyes and a mouth on a plain background, with blinking, gaze and mouth
+// openness. Face variations are plain BlueScript: subclass or tweak the
+// public fields, no DSL involved.
+export class Avatar {
+    bg: integer;
+    fg: integer;
+    // geometry (pixels), derived from the display size in begin()
+    eyeY: integer; eyeLX: integer; eyeRX: integer; eyeR: integer;
+    mouthY: integer; mouthW: integer; mouthMinH: integer; mouthMaxH: integer;
+
+    openRatio: float;    // eyes: 1 = open, 0 = closed
+    mouthRatio: float;   // mouth: 0 = closed, 1 = wide open
+    gazeH: float;        // -1 .. 1
+    gazeV: float;
+    dirtyEyes: boolean;
+    dirtyMouth: boolean;
+
+    constructor() {
+        this.bg = 0x000000;
+        this.fg = 0xffffff;
+        this.eyeY = 0; this.eyeLX = 0; this.eyeRX = 0; this.eyeR = 0;
+        this.mouthY = 0; this.mouthW = 0; this.mouthMinH = 0; this.mouthMaxH = 0;
+        this.openRatio = 1.0;
+        this.mouthRatio = 0.0;
+        this.gazeH = 0.0; this.gazeV = 0.0;
+        this.dirtyEyes = true; this.dirtyMouth = true;
+    }
+
+    begin() {
+        let w = m5.display.width();
+        let h = m5.display.height();
+        this.eyeY = h * 38 / 100;
+        this.eyeLX = w * 28 / 100;
+        this.eyeRX = w * 72 / 100;
+        this.eyeR = h * 7 / 100;
+        this.mouthY = h * 72 / 100;
+        this.mouthW = w * 22 / 100;
+        this.mouthMinH = h * 3 / 100 + 1;
+        this.mouthMaxH = h * 22 / 100;
+        m5.display.clear(this.bg);
+        this.dirtyEyes = true; this.dirtyMouth = true;
+        this.update();
+    }
+
+    setEyeOpen(ratio: float) { this.openRatio = ratio; this.dirtyEyes = true; }
+    setMouthOpen(ratio: float) { this.mouthRatio = ratio; this.dirtyMouth = true; }
+    setGaze(horizontal: float, vertical: float) {
+        this.gazeH = horizontal; this.gazeV = vertical; this.dirtyEyes = true;
+    }
+
+    private toInt(v: float): integer { let r: integer = 0; code`${r} = (int32_t)${v};`; return r; }
+
+    private drawEye(cx: integer) {
+        let r = this.eyeR;
+        let gx = this.toInt(this.gazeH * r * 6.0 / 10.0);
+        let gy = this.toInt(this.gazeV * r * 6.0 / 10.0);
+        // erase the widest possible eye box, then draw the current shape
+        m5.display.fillRect(cx - r * 2, this.eyeY - r * 2, r * 4, r * 4, this.bg);
+        if (this.openRatio > 0.5)
+            m5.display.fillCircle(cx + gx, this.eyeY + gy, r, this.fg);
+        else
+            m5.display.fillRect(cx + gx - r, this.eyeY + gy, r * 2, 2 + r / 4, this.fg);
+    }
+
+    // Redraws the parts whose state changed since the last update.
+    update() {
+        if (this.dirtyEyes) {
+            this.drawEye(this.eyeLX);
+            this.drawEye(this.eyeRX);
+            this.dirtyEyes = false;
+        }
+        if (this.dirtyMouth) {
+            let hMax = this.mouthMaxH;
+            let hNow = this.mouthMinH + this.toInt((hMax - this.mouthMinH) * this.mouthRatio);
+            let x = m5.display.width() / 2 - this.mouthW / 2;
+            m5.display.fillRect(x - 2, this.mouthY - 2, this.mouthW + 4, hMax + 4, this.bg);
+            m5.display.fillRect(x, this.mouthY, this.mouthW, hNow, this.fg);
+            this.dirtyMouth = false;
+        }
+    }
+
+    // A quick blink; drives update() itself.
+    blink() {
+        this.setEyeOpen(0.0);
+        this.update();
+        time.delay(80);
+        this.setEyeOpen(1.0);
+        this.update();
+    }
+}
