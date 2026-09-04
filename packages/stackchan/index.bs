@@ -14,6 +14,34 @@ code`
 export const SERVO_M5_BASE = 0;      // dedicated servo UART: TX=G6, RX=G7
 export const SERVO_TAKAO_BASE = 1;   // half-duplex on port A: TX=G2, RX=G1
 
+// PY32 I/O expander on the M5 / Stack-chan base (I2C 0x6F). Pin 0 gates the
+// servo power rail; the Takao base has no expander (this is also how the two
+// bases are told apart).
+export class StackchanPower {
+    // True when the expander answers (i.e. the M5 / Stack-chan base is attached).
+    present(): boolean {
+        let v = m5.i2c.readReg8(111, 2, 100000);   // version register
+        return v > 0 && v < 255;
+    }
+
+    setBit(reg: integer, on: boolean): boolean {
+        let cur = m5.i2c.readReg8(111, reg, 100000);
+        if (cur < 0) return false;
+        let next = cur & 254;                      // pin 0
+        if (on) next = cur | 1;
+        return m5.i2c.writeReg8(111, reg, next, 100000);
+    }
+
+    // Drive the servo power rail (configures pin 0 as a pulled-up output first).
+    setServoPower(on: boolean): boolean {
+        if (!this.setBit(3, true)) return false;   // mode: output
+        this.setBit(11, false);                    // pull-down off
+        this.setBit(9, true);                      // pull-up on
+        return this.setBit(5, on);                 // output level
+    }
+}
+
+
 export class StackchanServo {
     yawZero: integer;
     pitchZero: integer;
@@ -96,33 +124,6 @@ export class StackchanServo {
     }
     yaw(): float { return this.readDeg(1, this.yawZero); }
     pitch(): float { return this.readDeg(2, this.pitchZero); }
-}
-
-// PY32 I/O expander on the M5 / Stack-chan base (I2C 0x6F). Pin 0 gates the
-// servo power rail; the Takao base has no expander (this is also how the two
-// bases are told apart).
-export class StackchanPower {
-    // True when the expander answers (i.e. the M5 / Stack-chan base is attached).
-    present(): boolean {
-        let v = m5.i2c.readReg8(111, 2, 100000);   // version register
-        return v > 0 && v < 255;
-    }
-
-    setBit(reg: integer, on: boolean): boolean {
-        let cur = m5.i2c.readReg8(111, reg, 100000);
-        if (cur < 0) return false;
-        let next = cur & 254;                      // pin 0
-        if (on) next = cur | 1;
-        return m5.i2c.writeReg8(111, reg, next, 100000);
-    }
-
-    // Drive the servo power rail (configures pin 0 as a pulled-up output first).
-    setServoPower(on: boolean): boolean {
-        if (!this.setBit(3, true)) return false;   // mode: output
-        this.setBit(11, false);                    // pull-down off
-        this.setBit(9, true);                      // pull-up on
-        return this.setBit(5, on);                 // output level
-    }
 }
 
 // Si12T capacitive touch: three zones on top of the head
