@@ -18,7 +18,10 @@ Both pages offer every runtime bundle the site was built with (`bundles/index.js
 one directory per board such as `esp32s3` or `m5stack-atoms3`); pick the board in
 the toolbar or with `?board=<name>`.
 
-* `index.html` — project editor (files, packages) plus a REPL box.
+* `index.html` — project editor (files, packages) plus a REPL box. The Sample
+  selector loads ready-made projects (blink, M5 demo, Stack-chan with random
+  motion) and installs the packages they need; long builds report their current
+  step (compiling <file> / archiving / linking) in the status line.
 * `notebook.html` — the BlueScript notebook UI (`notebook/src`, React) with the
   in-browser backend: cells are compiled in the page and run over Web Bluetooth.
   The notebook's `ReplProvider` takes the backend through `setReplClientFactory`;

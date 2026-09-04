@@ -51,6 +51,10 @@ start-up, so one firmware serves all three. Colors are `0xRRGGBB` integers.
     *   **Install:** `bscript project install "https://github.com/ciniml/bluescript/tree/feature/clang-toolchain/packages/stackchan"` (or the same URL in the browser's "Install package")
     *   **Usage:** `import { StackchanServo, StackchanHeadTouch, StackchanBattery, SERVO_M5_BASE } from "stackchan";`
     *   Requires the `m5stack-cores3` runtime; lite bundles need `--components esp_driver_gpio,esp_driver_uart`.
+    *   `StackchanMotion` — trapezoidal-velocity head motion (`moveTo(yaw, pitch)`, call `tick()` every ~20 ms)
+        with automatic torque release after an idle period; `randomInt(max)` for random behaviour.
+    *   `import { Avatar } from "stackchan/avatar"` — the classic face on `m5.display`: `begin()`, `update()`,
+        `setEyeOpen(r)` / `blink()`, `setMouthOpen(r)`, `setGaze(h, v)`; colors and geometry are public fields.
 
 ### Digital I/O
 *   **GPIO (General Purpose Input/Output)**

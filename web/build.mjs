@@ -83,6 +83,10 @@ if (serve) {
   // Watch the parent directory (non-recursively): the bundle directory itself is
   // deleted and recreated by build-runtime, which breaks a recursive watcher.
   // Debounce so that the copy happens once the regeneration has settled.
+  // Static page files are copied, not bundled: re-copy them on change too.
+  fs.watch(path.join(root, 'public'), () => {
+    try { for (const f of fs.readdirSync(path.join(root, 'public'))) fs.copyFileSync(path.join(root, 'public', f), path.join(dist, f)); } catch (e) { console.error(e); }
+  });
   let timer;
   if (fs.existsSync(portDir)) fs.watch(portDir, () => {
     clearTimeout(timer);
