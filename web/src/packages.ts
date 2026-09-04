@@ -47,20 +47,29 @@ async function getJson(url: string) {
 // Returns the names of the installed packages.
 export async function installPackage(fs: MemoryFileSystem, url: string, version?: string, log: (s: string) => void = () => {}): Promise<string[]> {
   const { owner, repo, ref: urlRef, subdir: urlSubdir, candidates } = parseGitHubUrl(url);
-  // A tree URL is ambiguous when the branch name contains '/'; try each split.
-  let ref = version ?? urlRef ?? (await getJson(`https://api.github.com/repos/${owner}/${repo}`)).default_branch;
+  // Resolve the branch/tag to a commit SHA first: the raw content CDN caches
+  // by URL for several minutes, so fetching by branch can serve a stale
+  // version right after a push; SHA-addressed URLs are immutable. This also
+  // settles where a '/'-containing branch name ends in a tree URL.
+  const wanted = version ?? urlRef;
+  let sha: string | undefined;
   let subdir = urlSubdir;
-  let tree: any;
-  for (const attempt of (version || !candidates ? [{ ref, subdir: subdir ?? '' }] : candidates)) {
+  for (const attempt of (version || !candidates
+      ? [{ ref: wanted ?? (await getJson(`https://api.github.com/repos/${owner}/${repo}`)).default_branch, subdir: subdir ?? '' }]
+      : candidates)) {
     try {
-      tree = await getJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(attempt.ref)}?recursive=1`);
-      ref = attempt.ref; subdir = attempt.subdir || undefined;
-      if (!subdir || tree.tree.some((e: any) => e.path === `${subdir}/bsconfig.json`)) break;
-      tree = undefined;
-    } catch { /* try the next split */ }
+      sha = (await getJson(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(attempt.ref)}`)).sha;
+      subdir = attempt.subdir || undefined;
+      break;
+    } catch { /* not a branch/tag: try the next split */ }
   }
-  if (!tree) throw new Error(`Cannot find a package at ${url}.`);
-  log(`Fetching ${owner}/${repo}@${ref}${subdir ? `/${subdir}` : ''}...`);
+  if (!sha) throw new Error(`Cannot resolve a branch or tag in ${url}.`);
+  const tree = await getJson(`https://api.github.com/repos/${owner}/${repo}/git/trees/${sha}?recursive=1`);
+  if (subdir && !tree.tree.some((e: any) => e.path === `${subdir}/bsconfig.json`)) {
+    throw new Error(`No bsconfig.json under ${subdir} of ${owner}/${repo}@${sha.slice(0, 7)}.`);
+  }
+  const ref = sha;
+  log(`Fetching ${owner}/${repo}@${sha.slice(0, 7)}${subdir ? `/${subdir}` : ''}...`);
   const prefix = subdir ? `${subdir}/` : '';
   const files: { path: string }[] = tree.tree
     .filter((e: any) => e.type === 'blob' && !e.path.startsWith('.git') && e.path.startsWith(prefix))
