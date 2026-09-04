@@ -45,6 +45,10 @@ export default function ReplProvider({children}: {children: ReactNode}) {
         wsc.current.on('connected', () => {
             setReplState('activated');
             replService.current = wsc.current?.getService('repl') ?? null;
+            // 'connected' fires again after a reconnect; drop the previous
+            // listeners so every log line is shown exactly once.
+            replService.current?.off('log');
+            replService.current?.off('error');
             replService.current?.on('log', (message) => setLogs((logs) => [...logs, {message, type: 'output'}]));
             replService.current?.on('error', (message) => setLogs((logs) => [...logs, {message, type: 'error'}]));
         });
