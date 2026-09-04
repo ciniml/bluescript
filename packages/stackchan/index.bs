@@ -116,6 +116,21 @@ export class StackchanServo {
         let yawOk = this.pingRetry(1);
         let pitchOk = this.pingRetry(2);
         console.log("servo: ping yaw(id1)=" + yawOk + " pitch(id2)=" + pitchOk);
+        if (yawOk != pitchOk) {
+            // One servo answers, the other does not: it may be configured
+            // with a different ID. Scan the bus and probe the silent one.
+            let found = "";
+            for (let id = 1; id <= 8; id++) {
+                let ok: boolean = false;
+                code`${ok} = scs_ping(${id}) ? 1 : 0;`
+                if (ok) found = found + " " + id;
+            }
+            console.log("servo: bus scan, responding IDs:" + found);
+            let missing = yawOk ? 2 : 1;
+            let d: integer = 0;
+            code`${d} = scs_ping_ex(${missing});`
+            console.log("servo: raw probe id" + missing + "=" + d);
+        }
         if (!yawOk && !pitchOk) {
             // What does the wire look like? -2 = silent (likely unpowered
             // servos or wrong wiring); a packed value = bytes arrived but did
