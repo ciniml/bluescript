@@ -21,6 +21,8 @@
 
 static bool s_ready = false;
 static bool s_echo_cancel = false;
+static int32_t s_baud = 1000000;
+static int s_last_send_err = 0;   // 0 ok; 1 not ready; 2 short write; 3 tx-done; 4 echo timeout
 
 static void scs_install_on_core(void* arg) {
     *(esp_err_t*)arg = uart_driver_install(SCS_UART, 256, 0, 0, NULL, 0);
@@ -61,6 +63,7 @@ int32_t scs_begin_ex(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_can
     e = uart_set_pin(SCS_UART, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     if (e != ESP_OK) { if (err) *err = e; uart_driver_delete(SCS_UART); return 3; }
     s_echo_cancel = echo_cancel;
+    s_baud = baud;
     s_ready = true;
     return 0;
 }
@@ -71,6 +74,7 @@ bool scs_begin(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel) {
 
 // Sends | 0xFF 0xFF | id | len | instruction | params... | checksum |.
 static bool scs_send(int32_t id, uint8_t instruction, const uint8_t* params, int nparams) {
+    s_last_send_err = 1;
     if (!s_ready || nparams > SCS_MAX_PARAMS) return false;
     uint8_t tx[SCS_MAX_PARAMS + 6];
     tx[0] = 0xFF; tx[1] = 0xFF;
@@ -81,12 +85,21 @@ static bool scs_send(int32_t id, uint8_t instruction, const uint8_t* params, int
     tx[5 + nparams] = scs_checksum(tx + 2, 3 + nparams);
     const int total = 6 + nparams;
     uart_flush_input(SCS_UART);
+    s_last_send_err = 2;
     if (uart_write_bytes(SCS_UART, tx, total) != total) return false;
-    if (uart_wait_tx_done(SCS_UART, pdMS_TO_TICKS(SCS_TIMEOUT_MS)) != ESP_OK) return false;
+    if (uart_wait_tx_done(SCS_UART, pdMS_TO_TICKS(SCS_TIMEOUT_MS)) != ESP_OK) {
+        // The TX-done notification depends on the driver ISR; if it does not
+        // arrive, fall back to waiting the wire time out (10 bits per byte).
+        s_last_send_err = 3;   // recorded but not fatal
+        uint32_t us = ((uint32_t)total * 10u * 1000000u) / (uint32_t)s_baud + 200u;
+        vTaskDelay(pdMS_TO_TICKS(us / 1000u + 1u));
+    }
     if (s_echo_cancel) {
         uint8_t echo[SCS_MAX_PARAMS + 6];
+        s_last_send_err = 4;
         if (uart_read_bytes(SCS_UART, echo, total, pdMS_TO_TICKS(SCS_TIMEOUT_MS)) != total) return false;
     }
+    s_last_send_err = 0;
     return true;
 }
 
@@ -117,7 +130,7 @@ bool scs_ping(int32_t id) {
 }
 
 int32_t scs_ping_ex(int32_t id) {
-    if (!scs_send(id, SCS_INST_PING, NULL, 0)) return -1;
+    if (!scs_send(id, SCS_INST_PING, NULL, 0)) return -10 - s_last_send_err;
     uint8_t rx[16];
     int total = 0;
     // Collect whatever shows up within ~60 ms.
