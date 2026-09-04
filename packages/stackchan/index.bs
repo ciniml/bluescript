@@ -18,9 +18,14 @@ export const SERVO_TAKAO_BASE = 1;   // half-duplex on port A: TX=G2, RX=G1
 // servo power rail; the Takao base has no expander (this is also how the two
 // bases are told apart).
 export class StackchanPower {
+    // Raw version register (-1: no answer, 0 / 255: not a PY32).
+    version(): integer {
+        return m5.i2c.readReg8(111, 2, 100000);
+    }
+
     // True when the expander answers (i.e. the M5 / Stack-chan base is attached).
     present(): boolean {
-        let v = m5.i2c.readReg8(111, 2, 100000);   // version register
+        let v = this.version();
         return v > 0 && v < 255;
     }
 
@@ -55,12 +60,19 @@ export class StackchanServo {
     // base: SERVO_M5_BASE or SERVO_TAKAO_BASE. Returns false when neither servo answers.
     // On the M5 / Stack-chan base the servo power rail is switched on first.
     begin(base: integer): boolean {
-        if (base == 1)
+        if (base == 1) {
+            console.log("servo: Takao base wiring (TX=G2, RX=G1, half duplex)");
             return this.beginPins(2, 1, 1000000, true);
+        }
         let power = new StackchanPower();
+        let v = power.version();
+        console.log("servo: M5 base wiring (TX=G6, RX=G7), PY32 version " + v);
         if (power.present()) {
-            power.setServoPower(true);
-            time.delay(100);           // let the rail and the servos come up
+            let ok = power.setServoPower(true);
+            console.log(ok ? "servo: power rail on" : "servo: power rail write FAILED");
+            time.delay(500);           // let the rail and the servos boot
+        } else {
+            console.log("servo: PY32 expander not found; assuming an externally powered bus");
         }
         return this.beginPins(6, 7, 1000000, false);
     }
@@ -75,17 +87,49 @@ export class StackchanServo {
         return this.begin(1);
     }
 
+    // Pings one servo a few times (they ignore requests while still booting).
+    pingRetry(id: integer): boolean {
+        for (let attempt = 0; attempt < 3; attempt++) {
+            let ok: boolean = false;
+            code`${ok} = scs_ping(${id}) ? 1 : 0;`
+            if (ok) return true;
+            time.delay(60);
+        }
+        return false;
+    }
+
     beginPins(tx: integer, rx: integer, baud: integer, echoCancel: boolean): boolean {
         let ok: boolean = false;
         code`${ok} = scs_begin(${tx}, ${rx}, ${baud}, ${echoCancel}) ? 1 : 0;`
-        if (!ok)
+        if (!ok) {
+            console.log("servo: UART init failed");
             return false;
-        let yawOk: boolean = false;
-        let pitchOk: boolean = false;
-        code`${yawOk} = scs_ping(1) ? 1 : 0;`
-        code`${pitchOk} = scs_ping(2) ? 1 : 0;`
+        }
+        let yawOk = this.pingRetry(1);
+        let pitchOk = this.pingRetry(2);
+        console.log("servo: ping yaw(id1)=" + yawOk + " pitch(id2)=" + pitchOk);
         this.torque(true);
         return yawOk || pitchOk;
+    }
+
+    // Prints what the bus sees, for wiring problems: PY32 version and
+    // ping results for servo IDs 1..5 on both wirings.
+    diagnose() {
+        let power = new StackchanPower();
+        console.log("diagnose: PY32 version " + power.version());
+        if (power.present()) {
+            power.setServoPower(true);
+            time.delay(500);
+        }
+        console.log("-- M5 base wiring (TX=G6, RX=G7) --");
+        let ok: boolean = false;
+        code`${ok} = scs_begin(6, 7, 1000000, false) ? 1 : 0;`
+        for (let id = 1; id <= 5; id++)
+            console.log("  ping id " + id + ": " + this.pingRetry(id));
+        console.log("-- Takao wiring (TX=G2, RX=G1, half duplex) --");
+        code`${ok} = scs_begin(2, 1, 1000000, true) ? 1 : 0;`
+        for (let id = 1; id <= 5; id++)
+            console.log("  ping id " + id + ": " + this.pingRetry(id));
     }
 
     setZero(yawZero: integer, pitchZero: integer) {
