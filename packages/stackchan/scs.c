@@ -116,6 +116,20 @@ bool scs_ping(int32_t id) {
     return scs_transact(id, SCS_INST_PING, NULL, 0, scratch, sizeof(scratch)) >= 0;
 }
 
+int32_t scs_ping_ex(int32_t id) {
+    if (!scs_send(id, SCS_INST_PING, NULL, 0)) return -1;
+    uint8_t rx[16];
+    int total = 0;
+    // Collect whatever shows up within ~60 ms.
+    for (int i = 0; i < 3 && total < (int)sizeof(rx); i++) {
+        int n = uart_read_bytes(SCS_UART, rx + total, sizeof(rx) - total, pdMS_TO_TICKS(20));
+        if (n > 0) total += n;
+    }
+    if (total == 0) return -2;
+    if (total >= 6 && rx[0] == 0xFF && rx[1] == 0xFF && rx[2] == (uint8_t)id && (rx[4] & 0x7F) == 0) return 0;
+    return ((int32_t)total << 16) | ((int32_t)rx[0] << 8) | (total > 1 ? rx[1] : 0);
+}
+
 bool scs_enable_torque(int32_t id, bool on) {
     const uint8_t params[2] = {SCS_REG_TORQUE_ENABLE, on ? 1 : 0};
     uint8_t scratch[4];

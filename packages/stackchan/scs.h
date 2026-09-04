@@ -18,6 +18,10 @@ bool scs_begin(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel);
 // *err when non-null.
 int32_t scs_begin_ex(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel, int32_t* err);
 bool scs_ping(int32_t id);
+// Diagnostic ping: 0 = OK; -1 = send failed; otherwise a packed report of what
+// arrived within the timeout: (bytes_received << 16) | first_byte << 8 | second_byte
+// (0 bytes -> 0x00000000 is never returned for failure; that case yields -2).
+int32_t scs_ping_ex(int32_t id);
 bool scs_enable_torque(int32_t id, bool on);
 // raw: 0..1023 (SCS0009, 1 step = 0.3125 deg); time in ms; speed in raw units.
 bool scs_write_goal_position(int32_t id, int32_t raw, int32_t time_ms, int32_t speed);

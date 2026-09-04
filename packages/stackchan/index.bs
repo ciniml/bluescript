@@ -84,8 +84,12 @@ export class StackchanServo {
     // the Takao wiring (half-duplex on port A) is assumed.
     beginAuto(): boolean {
         let power = new StackchanPower();
-        if (power.present())
-            return this.begin(0);
+        if (power.present()) {
+            if (this.begin(0)) return true;
+            // The expander answered but the servos did not: fall back to the
+            // Takao wiring in case the bases are mixed.
+            return this.begin(1);
+        }
         return this.begin(1);
     }
 
@@ -112,6 +116,16 @@ export class StackchanServo {
         let yawOk = this.pingRetry(1);
         let pitchOk = this.pingRetry(2);
         console.log("servo: ping yaw(id1)=" + yawOk + " pitch(id2)=" + pitchOk);
+        if (!yawOk && !pitchOk) {
+            // What does the wire look like? -2 = silent (likely unpowered
+            // servos or wrong wiring); a packed value = bytes arrived but did
+            // not parse (count<<16 | first two bytes).
+            let d1: integer = 0;
+            let d2: integer = 0;
+            code`${d1} = scs_ping_ex(1);`
+            code`${d2} = scs_ping_ex(2);`
+            console.log("servo: raw probe id1=" + d1 + " id2=" + d2);
+        }
         this.torque(true);
         return yawOk || pitchOk;
     }
