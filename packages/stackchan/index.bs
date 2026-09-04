@@ -116,6 +116,10 @@ export class StackchanServo {
         let yawOk = this.pingRetry(1);
         let pitchOk = this.pingRetry(2);
         console.log("servo: ping yaw(id1)=" + yawOk + " pitch(id2)=" + pitchOk);
+        let sy: integer = 0;
+        let sp: integer = 0;
+        code`${sy} = scs_ping_status(1); ${sp} = scs_ping_status(2);`
+        console.log("servo: error flags yaw=" + sy + " pitch=" + sp + " (0 = healthy)");
         if (yawOk != pitchOk) {
             // One servo answers, the other does not: it may be configured
             // with a different ID. Scan the bus and probe the silent one.

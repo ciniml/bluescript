@@ -104,13 +104,22 @@ static bool scs_send(int32_t id, uint8_t instruction, const uint8_t* params, int
 }
 
 // Sends a request and reads the status packet; the data field goes to `data`.
-static int scs_transact(int32_t id, uint8_t instruction, const uint8_t* params, int nparams,
-                        uint8_t* data, int data_capacity) {
+// The servo's error flags land in *err_out (may be NULL); flags alone do not
+// fail the transaction — the servo is present and talking either way.
+static int scs_transact_ex(int32_t id, uint8_t instruction, const uint8_t* params, int nparams,
+                           uint8_t* data, int data_capacity, uint8_t* err_out) {
     if (!scs_send(id, instruction, params, nparams)) return -1;
     const TickType_t ticks = pdMS_TO_TICKS(SCS_TIMEOUT_MS);
+    // Resync on the FF FF marker in case stray bytes precede the frame.
     uint8_t header[4];
-    if (uart_read_bytes(SCS_UART, header, 4, ticks) != 4) return -1;
-    if (header[0] != 0xFF || header[1] != 0xFF || header[2] != (uint8_t)id) return -1;
+    int have = 0;
+    for (int scanned = 0; scanned < 16; scanned++) {
+        if (uart_read_bytes(SCS_UART, header + have, 1, ticks) != 1) return -1;
+        if (have < 2) {
+            if (header[have] == 0xFF) have++; else have = 0;
+        } else if (++have == 4) break;
+    }
+    if (have != 4 || header[2] != (uint8_t)id) return -1;
     const int length = header[3];
     if (length < 2) return -1;
     const int data_len = length - 2;     // minus the error byte and the checksum
@@ -120,13 +129,33 @@ static int scs_transact(int32_t id, uint8_t instruction, const uint8_t* params, 
     if (data_len > 0 && uart_read_bytes(SCS_UART, data, data_len, ticks) != data_len) return -1;
     uint8_t checksum;
     if (uart_read_bytes(SCS_UART, &checksum, 1, ticks) != 1) return -1;
-    if ((err & 0x7F) != 0) return -1;
+    if (err_out) *err_out = err;
     return data_len;
 }
 
+static int scs_transact(int32_t id, uint8_t instruction, const uint8_t* params, int nparams,
+                        uint8_t* data, int data_capacity) {
+    uint8_t err = 0;
+    int n = scs_transact_ex(id, instruction, params, nparams, data, data_capacity, &err);
+    if (n >= 0 && (err & 0x7F) != 0) return -1;
+    return n;
+}
+
 bool scs_ping(int32_t id) {
+    // Any well-formed status frame proves the servo is on the bus, even if
+    // it is flagging an error (undervoltage etc.).
     uint8_t scratch[4];
-    return scs_transact(id, SCS_INST_PING, NULL, 0, scratch, sizeof(scratch)) >= 0;
+    return scs_transact_ex(id, SCS_INST_PING, NULL, 0, scratch, sizeof(scratch), NULL) >= 0;
+}
+
+// -1/-1x = send failed, -2 = silent, big positive = unparsed bytes,
+// otherwise the servo's error-flag byte (0 = healthy).
+int32_t scs_ping_status(int32_t id) {
+    uint8_t scratch[4];
+    uint8_t err = 0;
+    if (scs_transact_ex(id, SCS_INST_PING, NULL, 0, scratch, sizeof(scratch), &err) < 0)
+        return scs_ping_ex(id);
+    return err;
 }
 
 int32_t scs_ping_ex(int32_t id) {
@@ -139,7 +168,7 @@ int32_t scs_ping_ex(int32_t id) {
         if (n > 0) total += n;
     }
     if (total == 0) return -2;
-    if (total >= 6 && rx[0] == 0xFF && rx[1] == 0xFF && rx[2] == (uint8_t)id && (rx[4] & 0x7F) == 0) return 0;
+    if (total >= 6 && rx[0] == 0xFF && rx[1] == 0xFF && rx[2] == (uint8_t)id) return rx[4];
     return ((int32_t)total << 16) | ((int32_t)rx[0] << 8) | (total > 1 ? rx[1] : 0);
 }
 
