@@ -70,7 +70,9 @@ export class StackchanServo {
         if (power.present()) {
             let ok = power.setServoPower(true);
             console.log(ok ? "servo: power rail on" : "servo: power rail write FAILED");
-            time.delay(500);           // let the rail and the servos boot
+            // SCS0009 servos need about a second after Vmotor comes up
+            // before they answer PING (same wait as stackchan-idf).
+            time.delay(1500);
         } else {
             console.log("servo: PY32 expander not found; assuming an externally powered bus");
         }
@@ -121,7 +123,7 @@ export class StackchanServo {
         console.log("diagnose: PY32 version " + power.version());
         if (power.present()) {
             power.setServoPower(true);
-            time.delay(500);
+            time.delay(1500);
         }
         console.log("-- M5 base wiring (TX=G6, RX=G7) --");
         let ok: boolean = false;
