@@ -69,6 +69,12 @@ function Toolbar() {
     try { const layout = await client.device!.init(); compiler.reset(layout); msg.info('Session reset.'); }
     catch (e) { msg.error(String(e)); }
   };
+  const rename = async () => {
+    const name = prompt('New device name (empty reverts to the default)', client.device?.name ?? '');
+    if (name === null) return;
+    try { await client.device!.setName(name); msg.info(`Device name set to '${name || '(default)'}'; it shows up from the next connection.`); }
+    catch (e) { msg.error(String(e)); }
+  };
   const reboot = async () => {
     try { await client.device!.reboot(); msg.info('Reboot requested; reconnect after the board restarts.'); }
     catch (e) { msg.error(String(e)); }
@@ -91,6 +97,7 @@ function Toolbar() {
       <Button size="small" type="primary" disabled={!loaded || connected} onClick={connect}>Connect (Bluetooth)</Button>
       <Button size="small" disabled={!connected} onClick={reset}>Reset session</Button>
       <Button size="small" disabled={!connected} onClick={reboot}>Reboot board</Button>
+      <Button size="small" disabled={!connected} onClick={rename}>Rename board</Button>
       <Checkbox checked={ignoreMismatch} onChange={e => setIgnoreMismatch(e.target.checked)} style={{ color: '#ddd' }}>ignore firmware mismatch</Checkbox>
       <Typography.Text style={{ color: '#ddd' }}>{status}</Typography.Text>
     </Space>

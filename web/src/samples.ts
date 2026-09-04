@@ -65,7 +65,7 @@ let face = new Avatar();
 face.begin();
 
 let servo = new StackchanServo();
-let servoOk = servo.begin(SERVO_M5_BASE);   // Takao base: SERVO_TAKAO_BASE
+let servoOk = servo.beginAuto();   // powers the servo rail and detects the base
 console.log(servoOk ? "servo ready" : "servo not found");
 // 20 ms ticks, 60 deg/s, 180 deg/s^2, torque off after 1 s of rest
 let motion = new StackchanMotion(servo, 20, 60.0, 180.0, 1000);
