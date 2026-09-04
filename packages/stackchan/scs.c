@@ -3,6 +3,7 @@
 // C port of scs_bus.cpp / scs_servo.cpp from stackchan-idf.
 #include <string.h>
 #include "driver/uart.h"
+#include "esp_ipc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "scs.h"
@@ -20,6 +21,10 @@
 
 static bool s_ready = false;
 static bool s_echo_cancel = false;
+
+static void scs_install_on_core(void* arg) {
+    *(esp_err_t*)arg = uart_driver_install(SCS_UART, 256, 0, 0, NULL, 0);
+}
 
 static uint8_t scs_checksum(const uint8_t* bytes, int len) {
     uint32_t sum = 0;
@@ -43,6 +48,13 @@ int32_t scs_begin_ex(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_can
         .source_clk = UART_SCLK_DEFAULT,
     };
     esp_err_t e = uart_driver_install(SCS_UART, 256, 0, 0, NULL, 0);
+    if (e == ESP_ERR_NOT_FOUND) {
+        // No free interrupt slot on this core (the main thread and the BLE
+        // stack are both pinned to core 0 in this firmware). Interrupts are
+        // allocated on the calling core, so install the driver from core 1.
+        e = ESP_FAIL;
+        esp_ipc_call_blocking(1, scs_install_on_core, &e);
+    }
     if (e != ESP_OK) { if (err) *err = e; return 1; }
     e = uart_param_config(SCS_UART, &cfg);
     if (e != ESP_OK) { if (err) *err = e; uart_driver_delete(SCS_UART); return 2; }
