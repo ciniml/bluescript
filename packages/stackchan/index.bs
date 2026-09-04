@@ -323,6 +323,11 @@ export class StackchanMotion {
     maxAcc: float;        // deg per tick^2
     releaseTicks: integer;
 
+    yawMin: float;
+    yawMax: float;
+    pitchMin: float;
+    pitchMax: float;
+
     yawPos: float;
     pitchPos: float;
     yawTarget: float;
@@ -344,11 +349,26 @@ export class StackchanMotion {
         this.yawVel = 0.0; this.pitchVel = 0.0;
         this.idleTicks = 0;
         this.torqueOn = false;
+        this.yawMin = -30.0; this.yawMax = 30.0;
+        this.pitchMin = -10.0; this.pitchMax = 15.0;
+    }
+
+    // Mechanical safety range, in degrees relative to the zero pose.
+    // Targets outside it are clamped, never refused.
+    setLimits(yawMin: float, yawMax: float, pitchMin: float, pitchMax: float) {
+        this.yawMin = yawMin; this.yawMax = yawMax;
+        this.pitchMin = pitchMin; this.pitchMax = pitchMax;
+    }
+
+    private clamp(v: float, lo: float, hi: float): float {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return v;
     }
 
     moveTo(yawDeg: float, pitchDeg: float) {
-        this.yawTarget = yawDeg;
-        this.pitchTarget = pitchDeg;
+        this.yawTarget = this.clamp(yawDeg, this.yawMin, this.yawMax);
+        this.pitchTarget = this.clamp(pitchDeg, this.pitchMin, this.pitchMax);
     }
 
     isMoving(): boolean {
@@ -398,6 +418,14 @@ export class StackchanMotion {
         this.pitchVel = this.step(this.pitchPos, this.pitchVel, this.pitchTarget);
         this.yawPos = this.yawPos + this.yawVel;
         this.pitchPos = this.pitchPos + this.pitchVel;
+        // Float rounding can leave pos a hair away from target forever, which
+        // would keep isMoving() true and the torque held: snap when close.
+        if (this.abs(this.yawTarget - this.yawPos) < 0.01) {
+            this.yawPos = this.yawTarget; this.yawVel = 0.0;
+        }
+        if (this.abs(this.pitchTarget - this.pitchPos) < 0.01) {
+            this.pitchPos = this.pitchTarget; this.pitchVel = 0.0;
+        }
         this.servo.move(this.yawPos, this.pitchPos, this.tickMs, 0);
     }
 }
