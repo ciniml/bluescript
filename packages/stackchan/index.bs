@@ -99,10 +99,12 @@ export class StackchanServo {
     }
 
     beginPins(tx: integer, rx: integer, baud: integer, echoCancel: boolean): boolean {
-        let ok: boolean = false;
-        code`${ok} = scs_begin(${tx}, ${rx}, ${baud}, ${echoCancel}) ? 1 : 0;`
-        if (!ok) {
-            console.log("servo: UART init failed");
+        let step: integer = 0;
+        let err: integer = 0;
+        code`{ int32_t e = 0; ${step} = scs_begin_ex(${tx}, ${rx}, ${baud}, ${echoCancel}, &e); ${err} = e; }`
+        if (step != 0) {
+            // step 1 = uart_driver_install, 2 = uart_param_config, 3 = uart_set_pin
+            console.log("servo: UART init failed at step " + step + " (esp_err " + err + ")");
             return false;
         }
         let yawOk = this.pingRetry(1);

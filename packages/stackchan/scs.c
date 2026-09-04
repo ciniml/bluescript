@@ -27,7 +27,8 @@ static uint8_t scs_checksum(const uint8_t* bytes, int len) {
     return (uint8_t)~sum;
 }
 
-bool scs_begin(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel) {
+int32_t scs_begin_ex(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel, int32_t* err) {
+    if (err) *err = 0;
     if (s_ready) {
         uart_driver_delete(SCS_UART);
         s_ready = false;
@@ -41,15 +42,19 @@ bool scs_begin(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel) {
         .rx_flow_ctrl_thresh = 0,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    if (uart_driver_install(SCS_UART, 256, 0, 0, NULL, 0) != ESP_OK) return false;
-    if (uart_param_config(SCS_UART, &cfg) != ESP_OK ||
-        uart_set_pin(SCS_UART, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
-        uart_driver_delete(SCS_UART);
-        return false;
-    }
+    esp_err_t e = uart_driver_install(SCS_UART, 256, 0, 0, NULL, 0);
+    if (e != ESP_OK) { if (err) *err = e; return 1; }
+    e = uart_param_config(SCS_UART, &cfg);
+    if (e != ESP_OK) { if (err) *err = e; uart_driver_delete(SCS_UART); return 2; }
+    e = uart_set_pin(SCS_UART, tx_pin, rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    if (e != ESP_OK) { if (err) *err = e; uart_driver_delete(SCS_UART); return 3; }
     s_echo_cancel = echo_cancel;
     s_ready = true;
-    return true;
+    return 0;
+}
+
+bool scs_begin(int32_t tx_pin, int32_t rx_pin, int32_t baud, bool echo_cancel) {
+    return scs_begin_ex(tx_pin, rx_pin, baud, echo_cancel, 0) == 0;
 }
 
 // Sends | 0xFF 0xFF | id | len | instruction | params... | checksum |.
