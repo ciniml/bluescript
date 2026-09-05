@@ -1,0 +1,219 @@
+code`
+#include <string.h>
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "esp_timer.h"
+#include "protocol.h"
+#include "c-runtime.h"
+#include "std-module.h"
+#include "m5_api.h"
+
+#define BUFF_SIZE 256
+
+char buff[BUFF_SIZE];
+
+void clear_buff() {
+    memset(buff, 0, BUFF_SIZE);
+}
+
+void write_message_to_buff(value_t message) {
+    if (is_int_value(message)) 
+        sprintf(buff, "%d\n", (int) value_to_int(message));
+    else if (is_float_value(message))
+        sprintf(buff, "%f\n", value_to_float(message));
+    else if (message == VALUE_NULL || message == VALUE_UNDEF)
+        sprintf(buff, "undefined\n");
+    else if (message == VALUE_TRUE)
+        sprintf(buff, "true\n");
+    else if (message == VALUE_FALSE)
+        sprintf(buff, "false\n");
+    else if (gc_is_string_object(message))
+        snprintf(buff, sizeof(buff), "%s\n", gc_string_to_cstr(message));
+    else {
+        class_object* cls = gc_get_class_of(message);
+        if (cls == NULL)
+        sprintf(buff, "??\n");
+        else
+        snprintf(buff, sizeof(buff), "<class %s>\n", cls->name);
+    }
+    printf(buff);
+}
+
+`
+
+function print(message: any) {
+    code`
+    clear_buff();
+    write_message_to_buff(${message});
+    bs_protocol_write_log(buff);
+    `
+}
+
+class Console {
+    log(message: any) {
+        code`
+    clear_buff();
+    write_message_to_buff(${message});
+    bs_protocol_write_log(buff);
+        `
+    }
+
+    error(message: any) {
+        code`
+    clear_buff();
+    write_message_to_buff(${message});
+    bs_protocol_write_error(buff);
+        `
+    }
+}
+
+
+class Time {
+    now(): float {
+        let currentTime: float = 0.0;
+        code`${currentTime} = esp_timer_get_time() / 1000.0;`;
+        return currentTime;
+    }
+
+    delay(ms: integer) {
+        code`vTaskDelay(pdMS_TO_TICKS(${ms}));`
+    }
+}
+
+// GPIO access built into the runtime (class name chosen not to clash with the
+// GPIO class of the standard gpio package), so that programs can drive pins
+// without linking ESP-IDF driver code (see espIdfComponents for the
+// full driver API).
+class BuiltinGpio {
+    // mode: 0 = input, 1 = output, 2 = input/output (open drain is not supported)
+    setDirection(pin: integer, mode: integer) {
+        code`
+    gpio_reset_pin((gpio_num_t)${pin});
+    gpio_set_direction((gpio_num_t)${pin},
+        ${mode} == 0 ? GPIO_MODE_INPUT : (${mode} == 1 ? GPIO_MODE_OUTPUT : GPIO_MODE_INPUT_OUTPUT));
+        `
+    }
+
+    setLevel(pin: integer, level: integer) {
+        code`gpio_set_level((gpio_num_t)${pin}, ${level});`
+    }
+
+    getLevel(pin: integer): integer {
+        let level: integer = 0;
+        code`${level} = gpio_get_level((gpio_num_t)${pin});`
+        return level;
+    }
+}
+
+const console = new Console();
+const time = new Time();
+const gpio = new BuiltinGpio();
+
+
+// ---- M5Stack AtomS3 / AtomS3 Lite / AtomS3R (M5Unified) ----
+// Colors are 0xRRGGBB integers. The board is detected at runtime by M5Unified.
+
+class M5Display {
+    available(): boolean {
+        let r: boolean = false;
+        code`${r} = bs_m5_display_available() ? 1 : 0;`
+        return r;
+    }
+    width(): integer { let v: integer = 0; code`${v} = bs_m5_display_width();`; return v; }
+    height(): integer { let v: integer = 0; code`${v} = bs_m5_display_height();`; return v; }
+    clear(color: integer) { code`bs_m5_display_clear(${color});` }
+    setBrightness(level: integer) { code`bs_m5_display_set_brightness(${level});` }
+    setCursor(x: integer, y: integer) { code`bs_m5_display_set_cursor(${x}, ${y});` }
+    setTextSize(size: integer) { code`bs_m5_display_set_text_size(${size});` }
+    setTextColor(color: integer, background: integer) { code`bs_m5_display_set_text_color(${color}, ${background});` }
+    print(text: string) { code`bs_m5_display_print(gc_string_to_cstr(${text}));` }
+    drawPixel(x: integer, y: integer, color: integer) { code`bs_m5_display_draw_pixel(${x}, ${y}, ${color});` }
+    fillRect(x: integer, y: integer, w: integer, h: integer, color: integer) { code`bs_m5_display_fill_rect(${x}, ${y}, ${w}, ${h}, ${color});` }
+    drawRect(x: integer, y: integer, w: integer, h: integer, color: integer) { code`bs_m5_display_draw_rect(${x}, ${y}, ${w}, ${h}, ${color});` }
+    drawLine(x0: integer, y0: integer, x1: integer, y1: integer, color: integer) { code`bs_m5_display_draw_line(${x0}, ${y0}, ${x1}, ${y1}, ${color});` }
+    fillCircle(x: integer, y: integer, r: integer, color: integer) { code`bs_m5_display_fill_circle(${x}, ${y}, ${r}, ${color});` }
+}
+
+class M5Button {
+    isPressed(): boolean { let r: boolean = false; code`${r} = bs_m5_btn_is_pressed() ? 1 : 0;`; return r; }
+    wasPressed(): boolean { let r: boolean = false; code`${r} = bs_m5_btn_was_pressed() ? 1 : 0;`; return r; }
+    wasReleased(): boolean { let r: boolean = false; code`${r} = bs_m5_btn_was_released() ? 1 : 0;`; return r; }
+    pressedFor(ms: integer): boolean { let r: boolean = false; code`${r} = bs_m5_btn_pressed_for(${ms}) ? 1 : 0;`; return r; }
+}
+
+class M5Led {
+    available(): boolean { let r: boolean = false; code`${r} = bs_m5_led_available() ? 1 : 0;`; return r; }
+    set(r: integer, g: integer, b: integer) { code`bs_m5_led_set(${r}, ${g}, ${b});` }
+    off() { code`bs_m5_led_set(0, 0, 0);` }
+}
+
+class M5Imu {
+    available(): boolean { let r: boolean = false; code`${r} = bs_m5_imu_available() ? 1 : 0;`; return r; }
+    // Acceleration in G; index 0 = x, 1 = y, 2 = z
+    accelX(): float { let v: float = 0.0; code`{ float x = 0, y = 0, z = 0; bs_m5_imu_read_accel(&x, &y, &z); ${v} = x; }`; return v; }
+    accelY(): float { let v: float = 0.0; code`{ float x = 0, y = 0, z = 0; bs_m5_imu_read_accel(&x, &y, &z); ${v} = y; }`; return v; }
+    accelZ(): float { let v: float = 0.0; code`{ float x = 0, y = 0, z = 0; bs_m5_imu_read_accel(&x, &y, &z); ${v} = z; }`; return v; }
+}
+
+
+class M5TouchScreen {
+    // Call m5.update() before reading. count() is 0 on boards without a touch panel.
+    count(): integer { let v: integer = 0; code`${v} = bs_m5_touch_count();`; return v; }
+    x(index: integer): integer { let v: integer = 0; code`${v} = bs_m5_touch_x(${index});`; return v; }
+    y(index: integer): integer { let v: integer = 0; code`${v} = bs_m5_touch_y(${index});`; return v; }
+    isPressed(index: integer): boolean { let r: boolean = false; code`${r} = bs_m5_touch_is_pressed(${index}) ? 1 : 0;`; return r; }
+}
+
+class M5I2C {
+    // The internal I2C bus that M5Unified manages. Register-oriented access;
+    // read methods return -1 on bus errors.
+    writeReg8(addr: integer, reg: integer, value: integer, freq: integer): boolean {
+        let r: boolean = false;
+        code`${r} = bs_m5_i2c_write_reg8(${addr}, ${reg}, ${value}, ${freq}) ? 1 : 0;`
+        return r;
+    }
+    readReg8(addr: integer, reg: integer, freq: integer): integer {
+        let v: integer = 0; code`${v} = bs_m5_i2c_read_reg8(${addr}, ${reg}, ${freq});`; return v;
+    }
+    // Reads len (1..4) big-endian bytes into one integer.
+    readReg(addr: integer, reg: integer, len: integer, freq: integer): integer {
+        let v: integer = 0; code`${v} = bs_m5_i2c_read_reg(${addr}, ${reg}, ${len}, ${freq});`; return v;
+    }
+    writeReg16(addr: integer, reg: integer, value: integer, freq: integer): boolean {
+        let r: boolean = false;
+        code`${r} = bs_m5_i2c_write_reg16(${addr}, ${reg}, ${value}, ${freq}) ? 1 : 0;`
+        return r;
+    }
+}
+
+class M5 {
+    display: M5Display;
+    btn: M5Button;
+    led: M5Led;
+    imu: M5Imu;
+    touch: M5TouchScreen;
+    i2c: M5I2C;
+
+    constructor() {
+        this.display = new M5Display();
+        this.btn = new M5Button();
+        this.led = new M5Led();
+        this.imu = new M5Imu();
+        this.touch = new M5TouchScreen();
+        this.i2c = new M5I2C();
+    }
+
+    // Initializes M5Unified (safe to call more than once).
+    begin() { code`bs_m5_begin();` }
+    // Polls the button; call it in loops that read the button.
+    update() { code`bs_m5_update();` }
+    boardName(): string {
+        let s: string = "";
+        code`${s} = gc_new_string((char*)bs_m5_board_name());`
+        return s;
+    }
+}
+
+const m5 = new M5();

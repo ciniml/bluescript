@@ -1,0 +1,194 @@
+{
+  "target": "esp32s3",
+  "board": "m5stack-cores3",
+  "vmVersion": "2.1.0",
+  "ldFiles": [
+    "esp32s3.peripherals.ld",
+    "esp32s3.rom.ld",
+    "esp32s3.rom.api.ld",
+    "esp32s3.rom.bt_funcs.ld",
+    "esp32s3.rom.libgcc.ld",
+    "esp32s3.rom.wdt.ld",
+    "esp32s3.rom.version.ld",
+    "esp32s3.rom.newlib.ld"
+  ],
+  "firmware": {
+    "version": "v2.1.0-51-g52ed84a",
+    "projectName": "bluescript",
+    "buildTime": "13:43:41 Sep  5 2026",
+    "idfVersion": "HEAD-HASH-NOTFOUND",
+    "elfSha256": "5e9920d89f3c4f78294ecc1c9161995a9e85beee0017d3b072bf6fc2025964e5"
+  },
+  "components": {
+    "esp_driver_gpio": {
+      "archive": "components/esp_driver_gpio/libesp_driver_gpio.a",
+      "includeDirs": [
+        "components/esp_driver_gpio/include"
+      ],
+      "requires": [
+        "esp_pm",
+        "cxx",
+        "newlib",
+        "freertos",
+        "esp_hw_support",
+        "heap",
+        "log",
+        "soc",
+        "hal",
+        "esp_rom",
+        "esp_common",
+        "esp_system",
+        "xtensa"
+      ]
+    },
+    "esp_pm": {
+      "archive": "components/esp_pm/libesp_pm.a",
+      "includeDirs": [
+        "components/esp_pm/include"
+      ],
+      "requires": []
+    },
+    "cxx": {
+      "archive": "components/cxx/libcxx.a",
+      "includeDirs": [],
+      "requires": []
+    },
+    "newlib": {
+      "archive": "components/newlib/libnewlib.a",
+      "includeDirs": [
+        "components/newlib/platform_include"
+      ],
+      "requires": []
+    },
+    "freertos": {
+      "archive": "components/freertos/libfreertos.a",
+      "includeDirs": [
+        "components/freertos/config/include",
+        "components/freertos/config/include/freertos",
+        "components/freertos/config/xtensa/include",
+        "components/freertos/FreeRTOS-Kernel/include",
+        "components/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+        "components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+        "components/freertos/esp_additions/include"
+      ],
+      "requires": []
+    },
+    "esp_hw_support": {
+      "archive": "components/esp_hw_support/libesp_hw_support.a",
+      "includeDirs": [
+        "components/esp_hw_support/include",
+        "components/esp_hw_support/include/soc",
+        "components/esp_hw_support/include/soc/esp32s3",
+        "components/esp_hw_support/dma/include",
+        "components/esp_hw_support/ldo/include",
+        "components/esp_hw_support/debug_probe/include"
+      ],
+      "requires": []
+    },
+    "heap": {
+      "archive": "components/heap/libheap.a",
+      "includeDirs": [
+        "components/heap/include",
+        "components/heap/tlsf"
+      ],
+      "requires": []
+    },
+    "log": {
+      "archive": "components/log/liblog.a",
+      "includeDirs": [
+        "components/log/include"
+      ],
+      "requires": []
+    },
+    "soc": {
+      "archive": "components/soc/libsoc.a",
+      "includeDirs": [
+        "components/soc/include",
+        "components/soc/esp32s3",
+        "components/soc/esp32s3/include",
+        "components/soc/esp32s3/register"
+      ],
+      "requires": []
+    },
+    "hal": {
+      "archive": "components/hal/libhal.a",
+      "includeDirs": [
+        "components/hal/platform_port/include",
+        "components/hal/esp32s3/include",
+        "components/hal/include"
+      ],
+      "requires": []
+    },
+    "esp_rom": {
+      "archive": "components/esp_rom/libesp_rom.a",
+      "includeDirs": [
+        "components/esp_rom/include",
+        "components/esp_rom/esp32s3/include",
+        "components/esp_rom/esp32s3/include/esp32s3",
+        "components/esp_rom/esp32s3"
+      ],
+      "requires": []
+    },
+    "esp_common": {
+      "archive": "components/esp_common/libesp_common.a",
+      "includeDirs": [
+        "components/esp_common/include"
+      ],
+      "requires": []
+    },
+    "esp_system": {
+      "archive": "components/esp_system/libesp_system.a",
+      "includeDirs": [
+        "components/esp_system/include"
+      ],
+      "requires": []
+    },
+    "xtensa": {
+      "archive": "components/xtensa/libxtensa.a",
+      "includeDirs": [
+        "components/xtensa/esp32s3/include",
+        "components/xtensa/include",
+        "components/xtensa/deprecated_include"
+      ],
+      "requires": []
+    },
+    "esp_driver_uart": {
+      "archive": "components/esp_driver_uart/libesp_driver_uart.a",
+      "includeDirs": [
+        "components/esp_driver_uart/include"
+      ],
+      "requires": [
+        "esp_pm",
+        "esp_driver_gpio",
+        "esp_ringbuf",
+        "cxx",
+        "newlib",
+        "freertos",
+        "esp_hw_support",
+        "heap",
+        "log",
+        "soc",
+        "hal",
+        "esp_rom",
+        "esp_common",
+        "esp_system",
+        "xtensa"
+      ]
+    },
+    "esp_ringbuf": {
+      "archive": "components/esp_ringbuf/libesp_ringbuf.a",
+      "includeDirs": [
+        "components/esp_ringbuf/include"
+      ],
+      "requires": []
+    }
+  },
+  "sysrootIncludeDir": "sysroot/include",
+  "sdkconfigDir": "config",
+  "defines": [
+    "-DMBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
+    "-DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE",
+    "-DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ",
+    "-DUNITY_INCLUDE_CONFIG_H"
+  ]
+}

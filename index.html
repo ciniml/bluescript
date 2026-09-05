@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BlueScript in the browser</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1.5rem; max-width: 1100px; }
+  textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 14px; box-sizing: border-box; }
+  #editor { height: 18rem; }
+  #repl { height: 5rem; }
+  #output { background: #111; color: #ddd; padding: .75rem; height: 16rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; }
+  #output .src { color: #8fc7ff; } #output .info { color: #888; } #output .err { color: #ff7b7b; }
+  button { margin-right: .5rem; }
+  #status { margin: .5rem 0; color: #555; }
+  .row { display: flex; gap: 1rem; }
+  #files { min-width: 12rem; }
+  #files ul { list-style: none; padding: 0; margin: .3rem 0; }
+  #files li { padding: .2rem .4rem; cursor: pointer; border-radius: 4px; }
+  #files li.active { background: #e3ecf7; font-weight: 600; }
+  .editor { flex: 1; }
+  h2 { font-size: 1rem; margin: 1rem 0 .3rem; }
+</style>
+</head>
+<body>
+<h1>BlueScript in the browser</h1>
+<p>Compiles BlueScript with a WebAssembly build of clang/lld, sends the machine code over Web Bluetooth, and flashes the runtime with esptool-js over Web Serial. Chrome or Edge required.</p>
+<div id="status">Loading...</div>
+<p>
+  <label>Board: <select id="board"></select></label>
+  <label>Sample: <select id="sample"></select></label>
+  <button id="loadSample" disabled title="Replaces the project files (and installs the packages the sample needs)">Load sample</button>
+  <button id="flash" disabled>Flash runtime (USB)</button>
+  <button id="connect" disabled>Connect (Bluetooth)</button>
+  <label title="Skip the check that the firmware on the board matches the one the compiler uses"><input type="checkbox" id="ignoreMismatch"> ignore firmware mismatch</label>
+</p>
+
+<h2>Project (src/) — <code>index.bs</code> is the entry; other files are reached with <code>import</code></h2>
+<div class="row">
+  <div id="files">
+    <ul id="fileList"></ul>
+    <button id="addFile">Add file</button>
+    <button id="removeFile">Remove</button>
+    <h2>Packages</h2>
+    <ul id="packageList"></ul>
+    <button id="installPackage" title="GitHub URL of a BlueScript package, e.g. https://github.com/bluescript-lang/pkg-gpio-esp32.git">Install package</button>
+    <button id="removePackage">Uninstall</button>
+  </div>
+  <div class="editor">
+    <textarea id="editor" spellcheck="false"></textarea>
+    <p>
+      <button id="buildOnly" disabled title="Compiles the whole project without a board; also warms the build cache">Build only</button>
+      <button id="runProject" disabled>Build &amp; run project</button>
+      <button id="reset" disabled title="Clears the program on the board and the session (variables, functions) so the same code can be run again">Reset session</button>
+      <button id="saveAutorun" disabled title="Builds the whole project, stores it on the board, and runs it; the board then runs it automatically on every boot">Save to device</button>
+      <button id="clearAutorun" disabled title="Removes the program stored on the board (it stops running at boot)">Clear saved</button>
+      <button id="reboot" disabled title="Restarts the board (works even when the program cannot be interrupted); reconnect afterwards">Reboot board</button>
+  <button id="rename" disabled title="Stores a new BLE device name on the board (shows up from the next connection)">Rename board</button>
+    </p>
+  </div>
+</div>
+
+<h2>REPL — runs against the project loaded above (variables and functions stay defined)</h2>
+<textarea id="repl" spellcheck="false">console.log(fib(20));</textarea>
+<p><button id="run" disabled>Run fragment</button></p>
+
+<pre id="output"></pre>
+<script src="main.js"></script>
+</body>
+</html>

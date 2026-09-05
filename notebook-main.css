@@ -1,0 +1,52 @@
+/* ../notebook/src/view/components/styles.module.css */
+.styles_statusScreen {
+  height: 100%;
+  width: 100%;
+  justify-items: center;
+  align-content: center;
+}
+.styles_activatedScreen {
+  padding-top: 30px;
+  padding-bottom: 30px;
+  overflow: scroll;
+  scrollbar-width: thin;
+  height: 100%;
+}
+.styles_cell {
+  width: 100%;
+  padding-right: 30px;
+  padding-left: 15px;
+  padding-bottom: 20px;
+}
+.styles_cellCodeEditor {
+  font-size: 14px;
+  width: 100%;
+  min-height: 50px;
+  border: solid #1890ff 1px;
+}
+.styles_cellCompileErrorArea {
+  margin-left: 50px;
+  justify-content: start;
+  color: #ff4d4f;
+  font-size: 16px;
+}
+.styles_copyButtonIconContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.styles_copyButtonIconBase {
+  position: absolute;
+  font-size: 30px;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+.styles_copyButtonIconVisible {
+  opacity: 1;
+  transform: scale(1);
+}
+.styles_copyButtonIconHidden {
+  opacity: 0;
+  transform: scale(0.7);
+}
+/*# sourceMappingURL=notebook-main.css.map */

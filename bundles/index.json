@@ -1,0 +1,20 @@
+[
+  {
+    "board": "esp32s3",
+    "target": "esp32s3",
+    "version": "v2.1.0-51-g52ed84a",
+    "buildTime": "13:44:11 Sep  5 2026"
+  },
+  {
+    "board": "m5stack-atoms3",
+    "target": "esp32s3",
+    "version": "v2.1.0-51-g52ed84a",
+    "buildTime": "13:43:56 Sep  5 2026"
+  },
+  {
+    "board": "m5stack-cores3",
+    "target": "esp32s3",
+    "version": "v2.1.0-51-g52ed84a",
+    "buildTime": "13:43:41 Sep  5 2026"
+  }
+]
