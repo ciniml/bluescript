@@ -205,6 +205,14 @@ export class StackchanServo {
     }
     yaw(): float { return this.readDeg(1, this.yawZero); }
     pitch(): float { return this.readDeg(2, this.pitchZero); }
+
+    // Present position in raw units (0..1023), -1 on a read failure.
+    // Turn the torque off and pose the head by hand to calibrate the zeros.
+    raw(id: integer): integer {
+        let v: integer = 0;
+        code`${v} = scs_read_present_position(${id});`
+        return v;
+    }
 }
 
 // Si12T capacitive touch: three zones on top of the head
