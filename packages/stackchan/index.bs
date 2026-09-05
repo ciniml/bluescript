@@ -350,7 +350,7 @@ export class StackchanMotion {
         this.idleTicks = 0;
         this.torqueOn = false;
         this.yawMin = -30.0; this.yawMax = 30.0;
-        this.pitchMin = -5.0; this.pitchMax = 10.0;
+        this.pitchMin = 0.0; this.pitchMax = 15.0;
     }
 
     // Mechanical safety range, in degrees relative to the zero pose.
