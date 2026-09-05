@@ -241,6 +241,7 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
             const objectFiles: string[] = [];
             const objectSigs: string[] = [];
             let allCached = true;
+            const compiles: (() => Promise<void>)[] = [];
             for (const source of this.sourceFiles(pkg)) {
                 const object = pkg.objectFileOf(source);
                 const flags = [...this.compileFlags, ...includeFlags, '-c', source, '-o', object];
@@ -248,13 +249,23 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
                 const stamp = object + '.sig';
                 if (!(this.fs.exists(object) && this.fs.exists(stamp)
                       && this.fs.readTextFile(stamp) === sig)) {
-                    await this.runTool(this.config.toolchain.clang, flags, pkg.resolvedDistDir);
-                    this.fs.writeFile(stamp, sig);
+                    compiles.push(async () => {
+                        await this.runTool(this.config.toolchain.clang, flags, pkg.resolvedDistDir);
+                        this.fs.writeFile(stamp, sig);
+                    });
                     allCached = false;
                 }
                 objectFiles.push(object);
                 objectSigs.push(path.basename(object) + ':' + sig);
             }
+            // Independent compiles run concurrently (bounded); each tool
+            // process/worker handles one translation unit.
+            const limit = 4;
+            let next = 0;
+            const drain = async () => {
+                while (next < compiles.length) await compiles[next++]();
+            };
+            await Promise.all(Array.from({ length: Math.min(limit, compiles.length) }, drain));
             const archiveSig = objectSigs.join(',');
             const archiveStamp = archivePath + '.sig';
             if (!allCached || !this.fs.exists(archivePath)

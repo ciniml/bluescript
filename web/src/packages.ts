@@ -85,7 +85,19 @@ export async function installPackage(fs: MemoryFileSystem, url: string, version?
   if (!configEntry) throw new Error(`${url} is not a BlueScript package (no bsconfig.json).`);
   const config = JSON.parse(new TextDecoder().decode(configEntry[1])) as PackageConfig;
   const dir = `${PACKAGES_DIR}/${config.projectName}`;
-  fs.rm(dir);
+  // Keep dist/build: it is the object cache, and content signatures decide
+  // whether the objects are still valid after the reinstall.
+  if (fs.exists(dir)) {
+    for (const e of fs.readdir(dir)) {
+      if (e.name === 'dist') {
+        for (const d of fs.readdir(`${dir}/dist`)) {
+          if (d.name !== 'build') fs.rm(`${dir}/dist/${d.name}`);
+        }
+      } else {
+        fs.rm(`${dir}/${e.name}`);
+      }
+    }
+  }
   for (const [p, data] of contents) fs.writeFile(`${dir}/${p}`, Buffer.from(data));
   log(`Installed ${config.projectName} (${contents.length} files)`);
   const installed = [config.projectName];

@@ -14,6 +14,7 @@ import { ElfReader } from '../../lang/src/compiler/board-toolchain/tools/elf-rea
 import { ToolchainClient } from './toolchain-client';
 import type { ToolName } from './toolchain-worker';
 import { readProjectDeps, readPackageConfig } from './packages';
+import { restoreObjectCache, persistObjectCache } from './object-cache';
 
 import { BUNDLE_DIR, PROJECT_DIR, PROJECT_NAME, PACKAGES_DIR } from './paths';
 export { BUNDLE_DIR, PROJECT_DIR, PROJECT_NAME };
@@ -125,6 +126,8 @@ export class BrowserCompiler {
     this.runner = new BrowserToolRunner(this.fs, this.tools, this.bundle, '/res');
     // An empty project skeleton.
     this.fs.mkdir(`${PROJECT_DIR}/src`);
+    // Warm the object cache from the previous visit; signatures decide reuse.
+    await restoreObjectCache(this.fs);
   }
 
   get target() { return this.bundle!.target; }
@@ -138,14 +141,18 @@ export class BrowserCompiler {
   exportProject(): { [path: string]: string } {
     const out: { [p: string]: string } = {};
     for (const [p, data] of this.fs.entries(PROJECT_DIR)) {
-      if (p.startsWith(`${PROJECT_DIR}/dist/`)) continue;
+      if (p.includes('/dist/')) continue;   // build outputs and caches
       out[p.slice(PROJECT_DIR.length + 1)] = data.toString('base64');
     }
     return out;
   }
   importProject(files: { [path: string]: string }) {
+    // Everything except the object caches (any dist/build directory, the
+    // project's and each package's) is replaced.
+    const preserved = this.fs.entries(PROJECT_DIR).filter(([p]) => p.includes('/dist/build/'));
     this.fs.rm(PROJECT_DIR);
     this.fs.mkdir(`${PROJECT_DIR}/src`);
+    for (const [p, data] of preserved) this.fs.writeFile(p, data);
     for (const [p, b64] of Object.entries(files)) this.fs.writeFile(`${PROJECT_DIR}/${p}`, Buffer.from(b64, 'base64'));
   }
 
@@ -210,7 +217,9 @@ export class BrowserCompiler {
   async buildProject(): Promise<MemoryImage> {
     if (!this.fs.exists(`${PROJECT_DIR}/src/index.bs`)) throw new Error('The project needs a src/index.bs.');
     this.session = this.newSession();
-    return this.session.buildProject(this.newProject());
+    const image = await this.session.buildProject(this.newProject());
+    void persistObjectCache(this.fs);
+    return image;
   }
 
   // Compile a REPL fragment against the current session (builds an empty project first if needed).
@@ -219,6 +228,8 @@ export class BrowserCompiler {
       if (!this.fs.exists(`${PROJECT_DIR}/src/index.bs`)) this.writeSource('index.bs', '');
       await this.buildProject();
     }
-    return this.session!.compileFragment(src);
+    const image = await this.session!.compileFragment(src);
+    void persistObjectCache(this.fs);
+    return image;
   }
 }
