@@ -213,6 +213,26 @@ export class BrowserCompiler {
     return new CompilerSession(toolchain, this.fs);
   }
 
+  // Compile-only pass: builds the project (warming the object cache) without
+  // touching the board session, so it works before a board is connected and
+  // does not disturb an ongoing session's differential state.
+  async buildOnly(): Promise<MemoryImage> {
+    if (!this.fs.exists(`${PROJECT_DIR}/src/index.bs`)) throw new Error('The project needs a src/index.bs.');
+    const layout: MemoryLayout = this.layout ?? {
+      dummy: true,
+      iram: { address: 0x40380000, size: 65536 }, dram: { address: 0x3fc90000, size: 65536 },
+      iflash: { address: 0x42100000, size: 1 << 20 }, dflash: { address: 0x3c100000, size: 1 << 20 },
+    };
+    const toolchain = new Esp32ClangToolchain({
+      bundleDir: BUNDLE_DIR, target: this.bundle!.target as any,
+      toolchain: { clang: 'clang', ar: 'llvm-ar', ld: 'lld' }, runner: 'wasm', resourceDir: '/res',
+    }, layout, { fs: this.fs, runner: this.runner! });
+    const session = new CompilerSession(toolchain, this.fs);
+    const image = await session.buildProject(this.newProject());
+    void persistObjectCache(this.fs);
+    return image;
+  }
+
   // Build and load the whole project (src/index.bs and its imports).
   async buildProject(): Promise<MemoryImage> {
     if (!this.fs.exists(`${PROJECT_DIR}/src/index.bs`)) throw new Error('The project needs a src/index.bs.');

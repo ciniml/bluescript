@@ -147,6 +147,7 @@ $('removeFile').onclick = () => {
     sampleSelect.appendChild(o);
   });
   ($('loadSample') as HTMLButtonElement).disabled = false;
+  ($('buildOnly') as HTMLButtonElement).disabled = false;
   $('loadSample').onclick = () => { loadSample(Number(sampleSelect.value)).catch(e => print(String(e), 'err')); };
   enable(['connect', 'flash'], true);
   if (location.search.includes('selftest')) {
@@ -190,6 +191,20 @@ $('connect').onclick = async () => {
     setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}.${fwText}`);
     enable(['run', 'runProject', 'reset', 'reboot', 'rename', 'saveAutorun', 'clearAutorun'], true);
   } catch (e) { print(String(e), 'err'); }
+};
+
+$('buildOnly').onclick = async () => {
+  commitEditor();
+  enable(['buildOnly', 'run', 'runProject'], false);
+  try {
+    print(`> build project (${compiler.listSources().join(', ')})`, 'src');
+    const t = performance.now();
+    const image = await compiler.buildOnly();
+    const size = (r?: { data: Uint8Array }) => r?.data.length ?? 0;
+    print(`built in ${(performance.now() - t).toFixed(0)} ms — iram ${size(image.iram)} dram ${size(image.dram)} iflash ${size(image.iflash)} dflash ${size(image.dflash)} bytes`, 'info');
+  } catch (e) { print(String(e), 'err'); }
+  enable(['buildOnly'], true);
+  if (device?.connected) enable(['run', 'runProject'], true);
 };
 
 $('runProject').onclick = async () => {
