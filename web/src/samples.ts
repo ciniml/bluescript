@@ -57,7 +57,7 @@ while (true) {
     board: 'm5stack-cores3',
     packages: [{ url: STACKCHAN_PKG }],
     files: {
-      'index.bs': `import { StackchanServo, StackchanHeadTouch, StackchanMotion, SERVO_M5_BASE, randomInt } from "stackchan";
+      'index.bs': `import { StackchanServo, StackchanMotion, SERVO_M5_BASE, randomInt } from "stackchan";
 import { Avatar } from "stackchan/avatar";
 
 m5.begin();
@@ -70,9 +70,6 @@ console.log(servoOk ? "servo ready" : "servo not found");
 // 20 ms ticks, 60 deg/s, 180 deg/s^2, torque off after 1 s of rest
 let motion = new StackchanMotion(servo, 20, 60.0, 180.0, 1000);
 
-let touch = new StackchanHeadTouch();
-touch.begin();
-
 while (true) {
     m5.update();
     if (servoOk) motion.tick();
@@ -83,13 +80,6 @@ while (true) {
     if (servoOk && !motion.isMoving() && randomInt(100) < 2)
         motion.moveTo((randomInt(61) - 30) * 1.0, (randomInt(25) - 12) * 1.0);
 
-    if (touch.isPressed()) {
-        face.setMouthOpen(1.0);
-        face.update();
-        console.log("head touched");
-        time.delay(250);
-        face.setMouthOpen(0.0);
-    }
     face.update();
     time.delay(20);
 }
