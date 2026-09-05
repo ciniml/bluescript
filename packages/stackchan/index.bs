@@ -54,7 +54,7 @@ export class StackchanServo {
     constructor() {
         // SCS0009 raw steps of the neutral head pose (M5 base values).
         this.yawZero = 460;
-        this.pitchZero = 576;   // 180 deg absolute (1 raw step = 0.3125 deg)
+        this.pitchZero = 800;   // 250 deg absolute (1 raw step = 0.3125 deg)
     }
 
     // base: SERVO_M5_BASE or SERVO_TAKAO_BASE. Returns false when neither servo answers.
