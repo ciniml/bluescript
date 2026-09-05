@@ -201,10 +201,32 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
         return this.bundledComponents(names).map(({ info }) => path.join(this.bundleDir, info.archive));
     }
 
+    // Content signature of one compilation: the source, every header in the
+    // package, and the exact flags. The bundle's headers are covered by the
+    // firmware identity in the flags-independent salt.
+    private compileSignature(source: string, pkg: PackageForEsp32, flags: string[]): string {
+        let h = 0x811c9dc5;
+        const mix = (data: Buffer | string) => {
+            const bytes = typeof data === 'string' ? Buffer.from(data) : data;
+            for (const byte of bytes) {
+                h ^= byte;
+                h = Math.imul(h, 0x01000193) >>> 0;
+            }
+            h = Math.imul(h ^ 0x2e, 0x01000193) >>> 0;   // separator
+        };
+        mix(this.manifest.firmware?.elfSha256 ?? this.manifest.firmware?.version ?? '');
+        mix(flags.join('\u0000'));
+        mix(this.fs.readFile(source));
+        for (const e of this.fs.readdir(pkg.resolvedDistDir)) {
+            if (e.isFile && e.name.endsWith('.h'))
+                mix(this.fs.readFile(path.join(pkg.resolvedDistDir, e.name)));
+        }
+        return h.toString(16);
+    }
+
     private async compilePackage(pkg: PackageForEsp32): Promise<void> {
         try {
             const archivePath = pkg.archiveFile;
-            this.fs.rm(archivePath);
             pkg.copyNativeFilesToDist();
             pkg.ensureBuildDirs();
 
@@ -212,17 +234,35 @@ export class Esp32ClangToolchain implements BoardToolchain<PackageForEsp32, Memo
                 ...[pkg.resolvedDistDir, pkg.resolvedBuildDir, this.includeDir].map(d => `-I${d}`),
                 ...this.componentIncludeFlags(pkg.espIdfComponents),
             ];
+            // Objects are cached by content signature (in the session-persistent
+            // file system), so rebuilding an unchanged package skips clang and
+            // llvm-ar entirely — each run of a WebAssembly tool costs a fresh
+            // instantiation, which dominates small builds.
             const objectFiles: string[] = [];
+            const objectSigs: string[] = [];
+            let allCached = true;
             for (const source of this.sourceFiles(pkg)) {
                 const object = pkg.objectFileOf(source);
-                await this.runTool(
-                    this.config.toolchain.clang,
-                    [...this.compileFlags, ...includeFlags, '-c', source, '-o', object],
-                    pkg.resolvedDistDir,
-                );
+                const flags = [...this.compileFlags, ...includeFlags, '-c', source, '-o', object];
+                const sig = this.compileSignature(source, pkg, flags);
+                const stamp = object + '.sig';
+                if (!(this.fs.exists(object) && this.fs.exists(stamp)
+                      && this.fs.readTextFile(stamp) === sig)) {
+                    await this.runTool(this.config.toolchain.clang, flags, pkg.resolvedDistDir);
+                    this.fs.writeFile(stamp, sig);
+                    allCached = false;
+                }
                 objectFiles.push(object);
+                objectSigs.push(path.basename(object) + ':' + sig);
             }
-            await this.runTool(this.config.toolchain.ar, ['rcs', archivePath, ...objectFiles], pkg.resolvedBuildDir);
+            const archiveSig = objectSigs.join(',');
+            const archiveStamp = archivePath + '.sig';
+            if (!allCached || !this.fs.exists(archivePath)
+                || !this.fs.exists(archiveStamp) || this.fs.readTextFile(archiveStamp) !== archiveSig) {
+                this.fs.rm(archivePath);
+                await this.runTool(this.config.toolchain.ar, ['rcs', archivePath, ...objectFiles], pkg.resolvedBuildDir);
+                this.fs.writeFile(archiveStamp, archiveSig);
+            }
         } catch (error) {
             throw new Error(`Failed to compile package ${pkg.name}: ${getErrorMessage(error)}`, {cause: error});
         }

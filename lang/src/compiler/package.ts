@@ -114,8 +114,17 @@ export class Package {
         }, [this.resolvedDistDir, this.packageDir]);
     }
 
+    // Removes generated sources but keeps the build directory: it holds the
+    // object cache (*.o with *.sig stamps) that lets an unchanged file skip
+    // its compile on the next build.
     clean(): void {
-        this.fs.rm(this.resolvedDistDir);
+        if (!this.fs.exists(this.resolvedDistDir))
+            return;
+        for (const e of this.fs.readdir(this.resolvedDistDir)) {
+            const full = path.join(this.resolvedDistDir, e.name);
+            if (full !== this.resolvedBuildDir)
+                this.fs.rm(full);
+        }
     }
 
     readSourceFile(p: RelativePath): string {
