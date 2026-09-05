@@ -22,12 +22,23 @@ typedef enum {
     PROTOCOL_PROFILE,
     PROTOCOL_REBOOT,
     PROTOCOL_SET_NAME,
+    PROTOCOL_AUTORUN_BEGIN,
+    PROTOCOL_AUTORUN_END,
+    PROTOCOL_AUTORUN_CLEAR,
 
     PROTOCOL_END
 } protocol_t;
 
 // Restart the board. Provided by the port; the default does nothing.
 __attribute__((weak)) void bs_board_reboot(void) {}
+
+// Autorun storage. Provided by the port; the defaults store nothing.
+__attribute__((weak)) void bs_autorun_erase(void) {}
+__attribute__((weak)) void bs_autorun_append(const uint8_t* data, uint32_t len) { (void)data; (void)len; }
+__attribute__((weak)) int bs_autorun_finalize(void) { return 0; }
+__attribute__((weak)) uint32_t bs_autorun_read(const uint8_t** data) { *data = 0; return 0; }
+
+static bool s_autorun_capture = false;
 
 // SHA-256 of the firmware ELF. Provided by the port; the default reports zeros.
 __attribute__((weak)) void bs_board_get_firmware_sha256(uint8_t out[32]) { memset(out, 0, 32); }
@@ -154,6 +165,7 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             uint32_t size = *(uint32_t*)(buffer + (idx+5));
             BS_LOG_INFO("Load %d bytes to %p", (int)size, address);
             bs_memory_memcpy(address, buffer + (idx+9), size);
+            if (s_autorun_capture) bs_autorun_append(buffer + idx, 9 + size);
             idx += (9 + size);
             break;
         }
@@ -163,6 +175,7 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             int32_t id = *(int32_t*)(buffer + (idx+1));
             void* address = *(void**)(buffer + (idx+5));
             bs_main_thread_set_main(id, address);
+            if (s_autorun_capture) bs_autorun_append(buffer + idx, 9);
             idx += 9;
             break;
         }
@@ -171,6 +184,7 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
         {
             // Abort a running program so that the main thread can process the reset.
             bs_interrupt_requested = 1;
+            s_autorun_capture = false;
             bs_main_thread_reset();
             idx += 1;
             break;
@@ -188,6 +202,29 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             idx += 2 + buffer[idx + 1];
             break;
         }
+        case PROTOCOL_AUTORUN_BEGIN:
+        // | cmd(1byte) |  Start recording the following LOAD/JUMP commands.
+            BS_LOG_INFO("Autorun: begin capture");
+            bs_autorun_erase();
+            s_autorun_capture = true;
+            idx += 1;
+            break;
+        case PROTOCOL_AUTORUN_END:
+        // | cmd(1byte) |  Seal the recording; it replays on every boot.
+            s_autorun_capture = false;
+            if (bs_autorun_finalize())
+                bs_protocol_write_log("autorun: saved");
+            else
+                bs_protocol_write_log("autorun: save failed");
+            idx += 1;
+            break;
+        case PROTOCOL_AUTORUN_CLEAR:
+        // | cmd(1byte) |
+            s_autorun_capture = false;
+            bs_autorun_erase();
+            bs_protocol_write_log("autorun: cleared");
+            idx += 1;
+            break;
         case PROTOCOL_REBOOT:
         // | cmd(1byte) |
         // Handled here, in the communication task, so that it works even when
@@ -200,6 +237,50 @@ void bs_protocol_read(uint8_t* buffer, uint32_t len) {
             return;
         default:
             return;
+        }
+    }
+}
+
+// Replays the sealed autorun stream (LOAD/JUMP records only). The stream may
+// live in mapped flash, so LOAD data is bounced through RAM: writing flash
+// regions with a flash-resident source is not allowed.
+void bs_protocol_replay_autorun(void) {
+    const uint8_t* data = NULL;
+    uint32_t len = bs_autorun_read(&data);
+    if (len == 0 || data == NULL)
+        return;
+    BS_LOG_INFO("Autorun: replaying %d bytes", (int)len);
+    static uint8_t bounce[512];
+    uint32_t idx = 0;
+    while (idx < len) {
+        uint8_t cmd = data[idx];
+        if (cmd == PROTOCOL_LOAD) {
+            void* address;
+            uint32_t size;
+            if (idx + 9 > len) break;
+            memcpy(&address, data + idx + 1, sizeof(address));
+            memcpy(&size, data + idx + 5, sizeof(size));
+            if (idx + 9 + size > len) break;
+            uint32_t off = 0;
+            while (off < size) {
+                uint32_t n = size - off;
+                if (n > sizeof(bounce)) n = sizeof(bounce);
+                memcpy(bounce, data + idx + 9 + off, n);
+                bs_memory_memcpy((uint8_t*)address + off, bounce, n);
+                off += n;
+            }
+            idx += 9 + size;
+        } else if (cmd == PROTOCOL_JUMP) {
+            int32_t id;
+            void* address;
+            if (idx + 9 > len) break;
+            memcpy(&id, data + idx + 1, sizeof(id));
+            memcpy(&address, data + idx + 5, sizeof(address));
+            bs_main_thread_set_main(id, address);
+            idx += 9;
+        } else {
+            BS_LOG_ERROR("Autorun: unexpected command %d, aborting replay", cmd);
+            break;
         }
     }
 }

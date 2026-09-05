@@ -15,6 +15,9 @@ export enum Protocol {
     Profile,
     Reboot,
     SetName,
+    AutorunBegin,
+    AutorunEnd,
+    AutorunClear,
 }
 
 
@@ -160,6 +163,20 @@ export class ProtocolPacketBuilder {
         return this.appendCommand(header);
     }
 
+    // Autorun: begin recording LOAD/JUMP commands on the board, seal the
+    // recording (it then replays on every boot), or clear a stored program.
+    public autorunBegin() {
+        return this.appendCommand(Buffer.from([Protocol.AutorunBegin]));
+    }
+
+    public autorunEnd() {
+        return this.appendCommand(Buffer.from([Protocol.AutorunEnd]));
+    }
+
+    public autorunClear() {
+        return this.appendCommand(Buffer.from([Protocol.AutorunClear]));
+    }
+
     private appendCommand(commandData: Buffer) {
         if (commandData.length > this.lastUnitRemain) {
             this.flushUnit();
@@ -195,6 +212,9 @@ type ProtocolPayloads = {
     [Protocol.Profile]: { fid: number; paramtypes: string[] };
     [Protocol.Reboot]: {};
     [Protocol.SetName]: {};
+    [Protocol.AutorunBegin]: {};
+    [Protocol.AutorunEnd]: {};
+    [Protocol.AutorunClear]: {};
 }
 
 export type ParseResult<T extends Protocol = Protocol> = {

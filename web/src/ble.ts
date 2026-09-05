@@ -92,6 +92,30 @@ export class WebBluetoothDevice {
     return performance.now() - t;
   }
 
+  // Sends the full image wrapped in the autorun commands: the board records
+  // the stream and replays it on every boot (and also runs it now).
+  async saveAutorun(image: MemoryImage, onProgress?: (percent: number) => void): Promise<number> {
+    const b = new ProtocolPacketBuilder(MTU);
+    b.autorunBegin();
+    if (image.iram) b.load(image.iram.address, image.iram.data);
+    if (image.dram) b.load(image.dram.address, image.dram.data);
+    if (image.iflash) b.load(image.iflash.address, image.iflash.data);
+    if (image.dflash) b.load(image.dflash.address, image.dflash.data);
+    for (const e of image.entryPoints) b.jump(e.isMain ? 1 : 0, e.address);
+    b.autorunEnd();
+    const p = new Promise<number>(resolve => {
+      let total = 0;
+      this.exectimeHandler = (id, time) => { total += time; if (id === 1) { this.exectimeHandler = undefined; resolve(total); } };
+    });
+    await this.write(b.build(), onProgress);
+    return p;
+  }
+
+  // Removes a stored autorun program.
+  async clearAutorun(): Promise<void> {
+    await this.write(new ProtocolPacketBuilder(MTU).autorunClear().build());
+  }
+
   async execute(image: MemoryImage): Promise<number> {
     const b = new ProtocolPacketBuilder(MTU);
     for (const e of image.entryPoints) b.jump(e.isMain ? 1 : 0, e.address);

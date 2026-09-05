@@ -15,6 +15,17 @@ void bs_board_get_firmware_sha256(uint8_t out[32]);
 // Port hook: persist and apply a new BLE device name.
 void bs_board_set_device_name(const char* name);
 
+// Autorun: a saved LOAD/JUMP stream replayed at boot so a program starts
+// without a host. The storage lives in the port (weak no-op defaults).
+void bs_autorun_erase(void);
+void bs_autorun_append(const uint8_t* data, uint32_t len);
+// Returns true when the stream was stored and sealed successfully.
+int bs_autorun_finalize(void);
+// Returns the sealed stream (0 if absent/invalid). *data stays valid.
+uint32_t bs_autorun_read(const uint8_t** data);
+// Replays the stored stream; called once at boot by the main thread.
+void CORE_TEXT_SECTION bs_protocol_replay_autorun(void);
+
 void CORE_TEXT_SECTION bs_protocol_write_log(char* message);
 
 void CORE_TEXT_SECTION bs_protocol_write_error(char* message);

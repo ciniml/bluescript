@@ -5,7 +5,7 @@ else()
     set(STD_MODULE_SRC "std-module.c")
 endif()
 
-idf_component_register(SRCS ${STD_MODULE_SRC} "main.c" "ble.c" "memory.c" "utils.c"
+idf_component_register(SRCS ${STD_MODULE_SRC} "main.c" "ble.c" "memory.c" "autorun.c" "utils.c"
                     INCLUDE_DIRS "include"
                     REQUIRES core driver esp_partition bt nvs_flash esp_app_format board
                     LDFRAGMENTS linker.lf

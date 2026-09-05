@@ -169,7 +169,7 @@ $('connect').onclick = async () => {
     device = new WebBluetoothDevice({
       log: (m) => print(m.replace(/\n$/, '')),
       error: (m) => print(m, 'err'),
-      disconnected: () => { setStatus('Disconnected.'); enable(['run', 'runProject', 'reset', 'reboot', 'rename'], false); },
+      disconnected: () => { setStatus('Disconnected.'); enable(['run', 'runProject', 'reset', 'reboot', 'rename', 'saveAutorun', 'clearAutorun'], false); },
     });
     await device.connect();
     setStatus(`Connected to ${device.name}. Resetting...`);
@@ -188,7 +188,7 @@ $('connect').onclick = async () => {
     const idf = fw && /^v?\d/.test(fw.idfVersion) ? `, ESP-IDF ${fw.idfVersion}` : '';
     const fwText = fw && layout.firmware ? ` Runtime ${fw.version} (built ${fw.buildTime}${idf}) verified.` : ' Runtime identity not verified.';
     setStatus(`Connected to ${device.name}. IRAM 0x${layout.iram.address.toString(16)} / IFlash 0x${layout.iflash.address.toString(16)}.${fwText}`);
-    enable(['run', 'runProject', 'reset', 'reboot', 'rename'], true);
+    enable(['run', 'runProject', 'reset', 'reboot', 'rename', 'saveAutorun', 'clearAutorun'], true);
   } catch (e) { print(String(e), 'err'); }
 };
 
@@ -220,6 +220,30 @@ $('run').onclick = async () => {
     if (/already|redeclar|duplicate/i.test(msg)) print('Hint: press "Reset session" to run the same code again.', 'info');
   }
   enable(['run', 'runProject'], true);
+};
+
+$('saveAutorun').onclick = async () => {
+  commitEditor();
+  enable(['run', 'runProject', 'saveAutorun'], false);
+  try {
+    // A fresh session so the stored stream is the complete program, not a diff.
+    const layout = await device!.init();
+    compiler.reset(layout);
+    print(`> save project to device (${compiler.listSources().join(', ')})`, 'src');
+    const t = performance.now();
+    const image = await compiler.buildProject();
+    print(`built in ${(performance.now() - t).toFixed(0)} ms`, 'info');
+    const execMs = await device!.saveAutorun(image, (p) => setStatus(`Saving... ${p}%`));
+    print(`saved and started (main ran in ${execMs.toFixed(2)} ms); the board now runs this program on every boot`, 'info');
+  } catch (e) { print(String(e), 'err'); }
+  enable(['run', 'runProject', 'saveAutorun'], true);
+};
+
+$('clearAutorun').onclick = async () => {
+  try {
+    await device!.clearAutorun();
+    print('cleared the program stored on the board', 'info');
+  } catch (e) { print(String(e), 'err'); }
 };
 
 $('reset').onclick = async () => {

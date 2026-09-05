@@ -85,6 +85,8 @@ static void task_send_profile(uint8_t fid, char* profile) {
 void main_thread(void *arg) {
     bs_memory_layout_t memory_layout;
     main_thread_init(&memory_layout);
+    // A program saved with the autorun commands starts here, host or no host.
+    bs_protocol_replay_autorun();
 
     while (true) {
         task_item_u task_item;
