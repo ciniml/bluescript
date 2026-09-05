@@ -138,7 +138,8 @@ uint32_t bs_autorun_read(const uint8_t** data) {
     bs_memory_layout_t layout;
     bs_memory_get_layout(&layout);
     if (h->iram_address != (uint32_t)layout.iram_address || h->dram_address != (uint32_t)layout.dram_address) {
-        BS_LOG_ERROR("Autorun: RAM layout changed since the save, ignoring the stored program");
+        BS_LOG_ERROR("Autorun: RAM layout changed since the save (saved iram %p dram %p, now %p %p), ignoring the stored program",
+                     (void*)h->iram_address, (void*)h->dram_address, layout.iram_address, layout.dram_address);
         return 0;
     }
     if (esp_rom_crc32_le(0, s_mapped + sizeof(*h), h->length) != h->crc) {

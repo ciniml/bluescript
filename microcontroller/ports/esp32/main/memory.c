@@ -137,6 +137,13 @@ static void dflash_reset() {
 }
 
 void bs_memory_init() {
+    // Runs once, as early as possible (before the BLE stack starts allocating),
+    // so the RAM regions land at the same addresses on every boot. Autorun
+    // replay depends on that stability.
+    static bool initialized = false;
+    if (initialized)
+        return;
+    initialized = true;
     iram_init();
     dram_init();
     iflash_init();
